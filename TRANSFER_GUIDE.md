@@ -19,13 +19,27 @@ cd "c:\Users\user\Desktop\Langgraph+Pydantic_Test"
 git init
 ```
 
-### 2. Add Remote Repository
+### 2. Setup Git LFS for Large AI Model Files
+
+```bash
+# Initialize Git LFS
+git lfs install
+
+# Track specific AI model files with LFS
+git lfs track "backend/ai_models/skin_lesion_efficientnetb0.pth"
+git lfs track "backend/ai_models/Llama-3.1-8B-UltraMedical.Q8_0.gguf"
+
+# Add .gitattributes file
+git add .gitattributes
+```
+
+### 3. Add Remote Repository
 
 ```bash
 git remote add origin https://github.com/Jwongjs/AI-Medical-Assistant-Web-App.git
 ```
 
-### 3. Stage All Files
+### 4. Stage All Files
 
 ```bash
 # Add all files except those in .gitignore
@@ -35,7 +49,7 @@ git add .
 git status
 ```
 
-### 4. Create Initial Commit
+### 5. Create Initial Commit
 
 ```bash
 git commit -m "Initial commit: AI Medical Assistant Web App
@@ -48,6 +62,7 @@ Features:
 - React TypeScript frontend
 - FastAPI Python backend
 - Comprehensive documentation
+- AI models included via Git LFS
 
 Tech Stack:
 - Backend: Python, FastAPI, LangGraph, llama-cpp-python
@@ -56,12 +71,15 @@ Tech Stack:
 - Deployment: Docker, Kubernetes ready"
 ```
 
-### 5. Push to GitHub
+### 6. Push to GitHub
 
 ```bash
 # Push to main branch
 git branch -M main
 git push -u origin main
+
+# Push LFS files (if any issues with LFS)
+git lfs push origin main
 ```
 
 ## 📁 What's Being Transferred
@@ -74,7 +92,8 @@ git push -u origin main
 ├── 📄 CONTRIBUTING.md           # Contribution guidelines
 ├── 📄 DOCUMENTATION.md          # Technical documentation
 ├── 📄 .gitignore               # Git ignore rules
-├── 🐚 start-local-test.sh      # Linux/Mac startup script
+├── � .gitattributes           # Git LFS configuration
+├── �🐚 start-local-test.sh      # Linux/Mac startup script
 ├── 🐚 start-local-test.bat     # Windows startup script
 ├── 📁 backend/                 # Python FastAPI backend
 │   ├── 📁 adapters/            # Model abstraction layer
@@ -84,7 +103,10 @@ git push -u origin main
 │   ├── 📁 nodes/               # Workflow nodes
 │   ├── 📁 schemas/             # Pydantic models
 │   ├── 📁 docs/                # Backend documentation
-│   ├── 📄 main.py              # FastAPI app entry
+│   ├── � ai_models/           # AI models (tracked with Git LFS)
+│   │   ├── 📄 skin_lesion_efficientnetb0.pth
+│   │   └── 📄 Llama-3.1-8B-UltraMedical.Q8_0.gguf
+│   ├── �📄 main.py              # FastAPI app entry
 │   ├── 📄 requirements.txt     # Python dependencies
 │   └── 📄 .env                 # Environment variables
 ├── 📁 my-app/                  # React TypeScript frontend
@@ -104,7 +126,6 @@ git push -u origin main
 
 ### ❌ Excluded Files (via .gitignore)
 ```
-🚫 ai_models/                   # Large AI model files (4GB+)
 🚫 __pycache__/                 # Python cache
 🚫 node_modules/                # Node.js dependencies
 🚫 .vscode/                     # VS Code settings
@@ -113,25 +134,33 @@ git push -u origin main
 🚫 .env.local                   # Local environment overrides
 ```
 
+### 📦 Large Files (via Git LFS)
+```
+📦 backend/ai_models/skin_lesion_efficientnetb0.pth (~20MB)
+📦 backend/ai_models/Llama-3.1-8B-UltraMedical.Q8_0.gguf (~4GB)
+```
+
 ## 🤖 Post-Transfer Setup for Contributors
 
 ### For New Contributors/Users:
 
-1. **Clone Repository**
+1. **Clone Repository with LFS**
    ```bash
    git clone https://github.com/Jwongjs/AI-Medical-Assistant-Web-App.git
    cd AI-Medical-Assistant-Web-App
+   
+   # Ensure Git LFS is installed and pull LFS files
+   git lfs install
+   git lfs pull
    ```
 
-2. **Download AI Models** (Required)
+2. **Verify AI Models** (Should be automatically downloaded via LFS)
    ```bash
-   # Create ai_models directory
-   mkdir backend/ai_models
-   
-   # Download models (examples):
-   # - Llama-3.1-8B-UltraMedical.Q8_0.gguf (~4GB)
+   # Check that AI models are present
+   ls backend/ai_models/
+   # Should show:
    # - skin_lesion_efficientnetb0.pth (~20MB)
-   # Place in backend/ai_models/
+   # - Llama-3.1-8B-UltraMedical.Q8_0.gguf (~4GB)
    ```
 
 3. **Setup Environment**
@@ -151,9 +180,9 @@ git push -u origin main
 - Configuration templates
 - Public dependencies
 - Startup scripts
+- AI model files (managed via Git LFS)
 
 ### ⚠️ What's Excluded for Security
-- AI model files (too large, can be downloaded separately)
 - Personal API keys (use environment variables)
 - Private configuration files
 - User data or logs
@@ -161,9 +190,9 @@ git push -u origin main
 ## 📊 Repository Stats After Transfer
 
 - **Languages**: Python, TypeScript, CSS, HTML
-- **Size**: ~50MB (without AI models)
+- **Size**: ~4.1GB (including AI models via LFS)
 - **Files**: ~100+ source files
-- **Features**: Complete full-stack medical AI application
+- **Features**: Complete full-stack medical AI application with models
 
 ## 🎯 Next Steps After Transfer
 
@@ -195,10 +224,14 @@ git push -u origin main
 ## 🆘 Troubleshooting Transfer Issues
 
 ### Problem: Large File Warnings
-**Solution**: Ensure AI models are in .gitignore
+**Solution**: Files are now tracked with Git LFS
 ```bash
-git rm --cached backend/ai_models/*
-git commit -m "Remove large model files from tracking"
+# Verify LFS tracking
+git lfs ls-files
+
+# If needed, re-track large files
+git lfs track "backend/ai_models/*.pth"
+git lfs track "backend/ai_models/*.gguf"
 ```
 
 ### Problem: API Keys in History

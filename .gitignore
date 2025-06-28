@@ -3,7 +3,11 @@ next-saas-starter-master/
 4_deployment/
 
 # AI Models (large files - tracked with Git LFS)
-# Note: AI model files are tracked with Git LFS, not ignored
+# Note: Only specific AI model files are tracked with Git LFS
+# Exclude other model files and files too large for GitHub LFS (>2GB)
+backend/ai_models/BioMistral-7B.Q8_0.gguf
+backend/ai_models/JSL-MedLlama-3-8B-v2.0-Q8_0.gguf
+backend/ai_models/Llama-3.1-8B-UltraMedical.Q8_0.gguf
 
 # Environment variables
 .env
