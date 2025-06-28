@@ -1,0 +1,18 @@
+Backend:
+
+Python: Main backend programming language.
+LangGraph: AI agent framework (built on LangChain, for orchestrating agent workflows).
+FastAPI: Web framework for building APIs (REST and/or WebSocket), exposes endpoints for the frontend.
+Frontend:
+
+TypeScript: Primary scripting language for the frontend (adds static types to JavaScript).
+React (with .tsx files): UI library/framework. .tsx files allow you to write React components using TypeScript and JSX (HTML-like syntax).
+CSS: For styling the UI (can use plain CSS, CSS modules, styled-components, Tailwind, etc.).
+
+Layer	              Technology	                      Purpose
+Backend	    Python	                           Core logic, AI orchestration
+AI Agent	LangGraph (LangChain)	           AI workflow/agent orchestration
+API Layer	FastAPI	Expose backend to frontend (REST/WebSocket)
+Frontend	React (.tsx), TypeScript, CSS	   UI, user interaction
+Styling	CSS (or variants: SCSS, Tailwind)	   Styling and layout
+UI Library	Material UI, Ant Design, etc.	   (Optional) Pre-built UI components

@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+python-dotenv
+requests
+pillow
+asyncio
+aiofiles
+langchain
+langgraph
+pydantic
+llama-cpp-python
+transformers
+torch
+google-maps-services

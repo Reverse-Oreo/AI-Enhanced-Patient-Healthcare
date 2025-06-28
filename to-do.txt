@@ -1,0 +1,2 @@
+1) clearly define the relationship between api.ts (services), useDiagnosis.ts (hook), pages (tsx), workflow_router and app.tsx
+2) analysis result on first stage not showing average confidence
