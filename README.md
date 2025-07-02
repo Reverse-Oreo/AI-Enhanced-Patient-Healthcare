@@ -1,4 +1,4 @@
-# 🏥 AI Medical Assistant Web App
+# 🏥 AI Medical Assistant Web App (In-Progress)
 
 An intelligent medical diagnosis platform powered by LangGraph workflows and local AI models, featuring real-time symptom analysis, image classification, and comprehensive healthcare recommendations.
 
