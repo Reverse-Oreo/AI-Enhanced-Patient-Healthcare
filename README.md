@@ -1,22 +1,22 @@
-# 🏥 AI Medical Assistant Web App (In-Progress)
+# AI Medical Assistant Web App (In-Progress)
 
 An intelligent medical diagnosis platform powered by LangGraph workflows and local AI models, featuring real-time symptom analysis, image classification, and comprehensive healthcare recommendations.
 
 ## 🌟 Features
 
-### 🔬 **Multi-Modal Medical Analysis**
+### **Multi-Modal Medical Analysis**
 - **Textual Symptom Analysis**: Advanced LLM-powered diagnosis from symptom descriptions
 - **Medical Image Classification**: Skin lesion analysis using EfficientNet
 - **Follow-up Interactions**: Dynamic questioning system for comprehensive diagnosis
 - **Overall Analysis**: Synthesized insights from all available data sources
 
-### 🧠 **AI-Powered Workflow**
+### **AI-Powered Chatbot Workflow**
 - **LangGraph Integration**: Sophisticated agent orchestration and workflow management
 - **Local Model Support**: Privacy-focused local LLM execution (Llama 3.1, BioMistral)
 - **Real-time Processing**: WebSocket-based live updates and streaming responses
 - **Confidence Scoring**: Quantified diagnostic confidence with threshold-based routing
 
-### 🎯 **Smart Healthcare Recommendations**
+### **Smart Healthcare Recommendations**
 - **Specialist Referrals**: Intelligent matching with appropriate medical specialists
 - **Urgency Assessment**: Automated severity classification and emergency detection
 - **Self-care Guidance**: Personalized health management recommendations
@@ -162,12 +162,12 @@ curl -X POST "http://localhost:8000/patient/followup_questions" \
 
 The application follows a sophisticated multi-stage workflow:
 
-1. **🔍 Textual Analysis** → Initial symptom processing
-2. **❓ Follow-up Questions** → Dynamic clarification (optional)
-3. **📸 Image Analysis** → Medical image classification (optional)
-4. **🎯 Overall Analysis** → Comprehensive data synthesis
-5. **🏥 Healthcare Recommendations** → Specialist referrals & guidance
-6. **📄 Medical Report** → Final comprehensive summary
+1. **Textual Analysis** → Initial symptom processing
+2. **Follow-up Questions** → Dynamic clarification (optional)
+3. **Image Analysis** → Medical image classification (optional)
+4. **Overall Analysis** → Comprehensive data synthesis
+5. **Healthcare Recommendations** → Specialist referrals & guidance
+6. **Medical Report** → Final comprehensive summary
 
 ## 🛠️ Development
 
@@ -290,11 +290,6 @@ curl http://localhost:8000/docs
 - Reduce model size (use Q4 quantization)
 - Enable GPU acceleration
 - Increase system RAM
-
-### Getting Help
-- 📖 Check [Documentation](./backend/docs/)
-- 🐛 Report [Issues](https://github.com/Jwongjs/AI-Medical-Assistant-Web-App/issues)
-- 💬 Join [Discussions](https://github.com/Jwongjs/AI-Medical-Assistant-Web-App/discussions)
 
 ## 🙏 Acknowledgments
 
