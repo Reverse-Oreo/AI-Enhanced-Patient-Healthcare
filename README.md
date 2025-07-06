@@ -242,54 +242,11 @@ kubectl apply -f medical-ai-deployment.yaml
 - **EfficientNet**: ~1GB VRAM, <1sec inference
 - **Embedding Model**: ~500MB RAM, <100ms
 
-## 🔒 Security & Privacy
-
-- **Local Processing**: All AI inference runs locally
-- **No Data Storage**: Patient data not persisted
-- **Session Isolation**: Each session independent
-- **Input Validation**: Comprehensive request sanitization
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
 ### Development Guidelines
 - Follow Python PEP 8 style guide
 - Use TypeScript strict mode
 - Add comprehensive tests for new features
 - Update documentation for API changes
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support & Troubleshooting
-
-### Common Issues
-
-**Model Loading Errors**
-```bash
-# Ensure correct model paths
-ls backend/ai_models/
-# Check memory availability
-free -h
-```
-
-**Frontend Connection Issues**
-```bash
-# Verify backend is running
-curl http://localhost:8000/docs
-# Check CORS settings
-```
-
-**Performance Issues**
-- Reduce model size (use Q4 quantization)
-- Enable GPU acceleration
-- Increase system RAM
 
 ## 🙏 Acknowledgments
 
