@@ -1,33 +1,34 @@
 from fastapi import APIRouter, Form, UploadFile, File, HTTPException
+from fastapi.responses import Response
 from typing import Optional, Dict
 import uuid
 import base64
 from datetime import datetime
+import logging
+import json
 
 import os
 from nodes import LLMDiagnosisNode, ImageClassificationNode, FollowUpInteractionNode, OverallAnalysisNode, HealthcareRecommendationNode, MedicalReportNode 
 from schemas.medical_schemas import AgentState
-from managers.workflow_state_manager import WorkflowStateManager
 from managers.websocket_manager import ConnectionManager
 from managers.workflow_state_manager import workflow_state_manager
 from managers.model_manager import model_manager
+from adapters.skinlesion_efficientNet_adapter import EfficientNetAdapter
 
 # Create router
 diagnosis_router = APIRouter()
-
-# Initialize workflow state manager
-workflow_state_manager = WorkflowStateManager()
-
-# Create connection manager instance (shared with main.py)
 manager = ConnectionManager()
 
+# Configure logger
+logger = logging.getLogger(__name__)
+
 #Global node instances
-llm_diagnosis_node: Optional[LLMDiagnosisNode] = None
-followup_interaction_node: Optional[FollowUpInteractionNode] = None
-image_classification_node: Optional[ImageClassificationNode] = None
-overall_analysis_node: Optional[OverallAnalysisNode] = None
-healthcare_recommendation_node: Optional[HealthcareRecommendationNode] = None
-medical_report_node: Optional[MedicalReportNode] = None
+llm_diagnosis_node: LLMDiagnosisNode | None = None
+followup_interaction_node: FollowUpInteractionNode | None = None
+image_classification_node: ImageClassificationNode | None = None
+overall_analysis_node: OverallAnalysisNode | None = None
+healthcare_recommendation_node: HealthcareRecommendationNode | None = None
+medical_report_node: MedicalReportNode | None = None
 
 print("✅ All nodes initialized for API routes!")
 
@@ -50,37 +51,59 @@ def update_session_state(session_id: str, updated_state: AgentState) -> None:
     """Update session state in storage"""
     session_states[session_id] = updated_state
     
-def ensure_nodes_initialized():
-    """Ensure all nodes are initialized with loaded models"""
+def initialize_nodes_once():
+    """Initialize all nodes ONCE with pre-loaded models"""
     global llm_diagnosis_node, followup_interaction_node, image_classification_node
-    global overall_analysis_node, healthcare_recommendation_node, medical_report_node
+    global overall_analysis_node, medical_report_node
     
+    if not model_manager.is_loaded():
+        raise RuntimeError("Models not loaded. Cannot initialize nodes.")
+    
+    print("🔧 Initializing nodes with loaded models...")
+    
+    # Get local adapter (always available)
+    local_adapter = model_manager.get_local_adapter()
+    
+    llm_diagnosis_node = LLMDiagnosisNode(adapter=local_adapter)
+    followup_interaction_node = FollowUpInteractionNode(adapter=local_adapter)
+    overall_analysis_node = OverallAnalysisNode(adapter=local_adapter)
+    medical_report_node = MedicalReportNode(adapter=local_adapter)
+
+    #Image classification node set to none as it will be loaded on demand
+    image_classification_node = None
+    print("✅ All nodes initialized with loaded models!")
+    
+def ensure_nodes_initialized():
+    """check if models are loaded"""
     if not model_manager.is_loaded():
         raise HTTPException(status_code=503, detail="Models not loaded yet. Please wait for startup to complete.")
     
-    # Initialize nodes if not already done
+    # 🔧 FIX: Nodes should already be initialized at startup
     if llm_diagnosis_node is None:
-        local_adapter = model_manager.get_local_adapter()
-        efficientnet_adapter = model_manager.get_efficientnet_adapter()
-        
-        if local_adapter is None:
-            raise HTTPException(status_code=503, detail="LLM model not available")
-        
-        llm_diagnosis_node = LLMDiagnosisNode(adapter=local_adapter)
-        followup_interaction_node = FollowUpInteractionNode(adapter=local_adapter)
-        overall_analysis_node = OverallAnalysisNode(adapter=local_adapter)
-        healthcare_recommendation_node = HealthcareRecommendationNode(
-            adapter=local_adapter,
-            google_maps_api_key=os.getenv("GOOGLE_MAPS_API_KEY")
-        )
-        medical_report_node = MedicalReportNode(adapter=local_adapter)
-        
-        if efficientnet_adapter:
-            image_classification_node = ImageClassificationNode(adapter=efficientnet_adapter)
-        
-        print("✅ All nodes initialized with shared model adapters!")
+        raise HTTPException(status_code=500, detail="Nodes not initialized. Internal server error.")
 
-# ✅ NODE 1: Textual Analysis Endpoint
+async def get_image_classification_node():
+    "create image classification node separately for on-demand model loading"
+    global image_classification_node
+    
+    if image_classification_node is None:
+        try:
+            efficientnet_adapter = await model_manager.get_efficientnet_adapter()
+            
+            if efficientnet_adapter is None:
+                raise RuntimeError("Failed to load EfficientNet adapter")
+            
+            # Create the image classification node
+            image_classification_node = ImageClassificationNode(adapter=efficientnet_adapter)
+            print("✅ Image classification node created successfully")
+            
+        except Exception as e:
+            print(f"❌ Failed to create image classification node: {e}")
+            raise
+    
+    return image_classification_node
+
+#NODE 1: Textual Analysis Endpoint
 @diagnosis_router.post("/patient/textual_analysis")
 async def run_textual_analysis(
     user_symptoms: str = Form(..., description="Patient symptoms"),
@@ -89,7 +112,7 @@ async def run_textual_analysis(
     """Run LLM textual analysis on symptoms"""
     
     # Ensure nodes are initialized with loaded models
-    ensure_nodes_initialized()
+    # ensure_nodes_initialized()
     
     if not session_id:
         session_id = f"session_{uuid.uuid4().hex[:8]}"
@@ -150,12 +173,12 @@ async def run_textual_analysis(
         })
         raise HTTPException(status_code=500, detail=str(e))
 
-# ✅ NODE 2: Follow-up Questions Endpoint
+#NODE 2: Follow-up Questions Endpoint
 @diagnosis_router.post("/patient/followup_questions")
 async def run_followup_questions(
     session_id: str = Form(..., description="Session ID"),
     previous_state: str = Form(..., description="JSON of previous AgentState"),
-    followup_responses: Optional[str] = Form(None, description="JSON of user responses")
+    followup_responses: str | None = Form(None, description="JSON of user responses")
 ):
     """Generate follow-up questions OR process responses"""
     
@@ -163,11 +186,17 @@ async def run_followup_questions(
     ensure_nodes_initialized()
     
     try:
+        ### Solution 1: Try deleting the followup_response here instead 
+        
         import json
         state = json.loads(previous_state)
         
+        print("check followup_responses:", followup_responses)
+        
         # Add follow-up responses if provided
-        if followup_responses:
+        if not followup_responses:
+            state["requires_user_input"] = True
+        else: 
             state["followup_response"] = json.loads(followup_responses)
             state["requires_user_input"] = False
         
@@ -181,10 +210,18 @@ async def run_followup_questions(
         # Run the follow-up interaction node
         result = await followup_interaction_node(state)
         
+        # Normal processing - use workflow state manager
+        workflow_info = workflow_state_manager.update_workflow_stage_and_determine_next(
+            result, "followup_interaction"
+        )
+
+        update_session_state(session_id, result)
+        
         await manager.send_message(session_id, {
             "type": "node_completed",
             "node": "followup_questions", 
             "result": result,
+            "workflow_info": workflow_info,
             "timestamp": datetime.now().isoformat()
         })
         
@@ -192,6 +229,7 @@ async def run_followup_questions(
             "success": True,
             "session_id": session_id,
             "result": result,
+            "workflow_info": workflow_info,
         }
         
     except Exception as e:
@@ -203,12 +241,12 @@ async def run_followup_questions(
         })
         raise HTTPException(status_code=500, detail=str(e))
 
-# ✅ NODE 3: Image Analysis Endpoint  
+#NODE 3: Image Analysis Endpoint  
 @diagnosis_router.post("/patient/image_analysis")
 async def run_image_analysis(
     session_id: str = Form(...),
     previous_state: str = Form(..., description="JSON of previous AgentState"),
-    image_file: Optional[UploadFile] = File(None, description="Medical image")
+    image_file: UploadFile | None = File(None, description="Medical image")
 ):
     """Run image classification analysis"""
     
@@ -231,13 +269,34 @@ async def run_image_analysis(
             "timestamp": datetime.now().isoformat()
         })
         
+        #Get image classification node with on-demand loading
+        image_node = await get_image_classification_node()
+        
+        await manager.send_message(session_id, {
+            "type": "node_progress",
+            "node": "image_analysis", 
+            "message": "Analyzing medical image...",
+            "timestamp": datetime.now().isoformat()
+        })
+        
         # Run the image classification node
-        result = await image_classification_node(state)
+        result = await image_node(state)
+        
+        #workflow state manager to set completion stage and determine next step
+        workflow_info = workflow_state_manager.update_workflow_stage_and_determine_next(
+            result, "image_analysis"
+        )
+
+        print(f"🔍 After WorkflowStateManager - stage: {result.get('current_workflow_stage')}")
+        print(f"📊 Workflow info: {workflow_info}")
+        
+        update_session_state(session_id, result)
         
         await manager.send_message(session_id, {
             "type": "node_completed",
             "node": "image_analysis",
             "result": result, 
+            "workflow_info": workflow_info,
             "timestamp": datetime.now().isoformat()
         })
         
@@ -245,6 +304,7 @@ async def run_image_analysis(
             "success": True,
             "session_id": session_id,
             "result": result,
+            "workflow_info": workflow_info,
         }
         
     except Exception as e:
@@ -256,7 +316,7 @@ async def run_image_analysis(
         })
         raise HTTPException(status_code=500, detail=str(e))
 
-# ✅ NODE 4: Overall Analysis Endpoint
+#NODE 4: Overall Analysis Endpoint
 @diagnosis_router.post("/patient/overall_analysis")
 async def run_overall_analysis(
     session_id: str = Form(...),
@@ -281,10 +341,21 @@ async def run_overall_analysis(
         # Run the overall analysis node
         result = await overall_analysis_node(state)
         
+        #workflow state manager to set completion stage and determine next step
+        workflow_info = workflow_state_manager.update_workflow_stage_and_determine_next(
+            result, "overall_analysis"
+        )
+
+        print(f"🔍 After WorkflowStateManager - stage: {result.get('current_workflow_stage')}")
+        print(f"📊 Workflow info: {workflow_info}")
+        
+        update_session_state(session_id, result)
+        
         await manager.send_message(session_id, {
             "type": "node_completed",
             "node": "overall_analysis",
             "result": result,
+            "workflow_info": workflow_info,
             "timestamp": datetime.now().isoformat()
         })
         
@@ -292,6 +363,7 @@ async def run_overall_analysis(
             "success": True,
             "session_id": session_id,
             "result": result,
+            "workflow_info": workflow_info,
         }
         
     except Exception as e:
@@ -303,7 +375,7 @@ async def run_overall_analysis(
         })
         raise HTTPException(status_code=500, detail=str(e))
 
-# ✅ NODE 5: Healthcare Recommendations Endpoint
+#NODE 5: Healthcare Recommendations Endpoint
 @diagnosis_router.post("/patient/healthcare_recommendations")
 async def run_healthcare_recommendations(
     session_id: str = Form(...),
@@ -328,10 +400,21 @@ async def run_healthcare_recommendations(
         # Run the healthcare recommendation node
         result = await healthcare_recommendation_node(state)
         
+        #workflow state manager to set completion stage and determine next step
+        workflow_info = workflow_state_manager.update_workflow_stage_and_determine_next(
+            result, "healthcare_recommendation"
+        )
+
+        print(f"🔍 After WorkflowStateManager - stage: {result.get('current_workflow_stage')}")
+        print(f"📊 Workflow info: {workflow_info}")
+        
+        update_session_state(session_id, result)
+        
         await manager.send_message(session_id, {
             "type": "node_completed",
             "node": "healthcare_recommendations",
             "result": result,
+            "workflow_info": workflow_info,
             "timestamp": datetime.now().isoformat()
         })
         
@@ -339,6 +422,7 @@ async def run_healthcare_recommendations(
             "success": True,
             "session_id": session_id,
             "result": result,
+            "workflow_info": workflow_info,
         }
         
     except Exception as e:
@@ -350,34 +434,41 @@ async def run_healthcare_recommendations(
         })
         raise HTTPException(status_code=500, detail=str(e))
 
-# ✅ NODE 6: Medical Report Endpoint
 @diagnosis_router.post("/patient/medical_report")
-async def run_medical_report(
+async def export_medical_report(
     session_id: str = Form(...),
     previous_state: str = Form(..., description="JSON of previous AgentState")
 ):
-    """Generate final medical report"""
-    
-    # Ensure nodes are initialized with loaded models
+    """Generate and export medical report in PDF or Word format"""
     ensure_nodes_initialized()
     
     try:
-        import json
         state = json.loads(previous_state)
-        
+
         await manager.send_message(session_id, {
             "type": "node_started",
             "node": "medical_report",
-            "message": "Generating medical report...",
+            "message": "Generating comprehensive medical report...",
             "timestamp": datetime.now().isoformat()
         })
         
-        # Run the medical report node  
         result = await medical_report_node(state)
         
+        # Update workflow stage
+        workflow_info = workflow_state_manager.update_workflow_stage_and_determine_next(
+            result, "generate_report"
+        )
+
+        print(f"🔍 After WorkflowStateManager - stage: {result.get('current_workflow_stage')}")
+        print(f"📊 Workflow info: {workflow_info}")
+        
+        update_session_state(session_id, result)
+        
         await manager.send_message(session_id, {
-            "type": "workflow_completed",
-            "final_result": result,
+            "type": "node_completed",
+            "node": "medical_report",
+            "result": result,
+            "workflow_info": workflow_info,
             "timestamp": datetime.now().isoformat()
         })
         
@@ -385,19 +476,62 @@ async def run_medical_report(
             "success": True,
             "session_id": session_id,
             "result": result,
-            "next_recommended_endpoint": None  # Workflow complete
+            "workflow_info": workflow_info,
         }
         
     except Exception as e:
-        await manager.send_message(session_id, {
-            "type": "node_error",
-            "node": "medical_report",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        })
+        logger.error(f"❌ Export failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
+@diagnosis_router.post("/patient/export_report")
+async def export_medical_report(
+    session_id: str = Form(...),
+    format: str = Form(...),  # 'pdf' or 'word'
+    include_details: bool = Form(True),
+    report_data: str = Form(...)  # JSON string
+):
+    """Generate and export medical report in PDF or Word format (EXPORT ONLY)"""
+    
+    try:
+        import json
+        data = json.loads(report_data)
+        
+        # Get session state for complete report data
+        session_state = session_states.get(session_id)
+        if not session_state:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        # Use medical report node for export generation
+        if not medical_report_node:
+            raise HTTPException(status_code=500, detail="Medical report node not initialized")
+        
+        # Call export method with correct arguments
+        file_content = await medical_report_node.generate_export_file(
+            state=session_state,
+            format=format,
+            include_details=include_details
+        )
+        
+        if format == 'pdf':
+            media_type = 'application/pdf'
+            filename = f"medical-report-{session_id}.pdf"
+        elif format == 'word':
+            media_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            filename = f"medical-report-{session_id}.docx"
+        else:
+            raise HTTPException(status_code=400, detail="Invalid format")
+        
+        return Response(
+            content=file_content,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Export failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @diagnosis_router.get("/debug/routes")
 async def debug_routes():
@@ -487,61 +621,6 @@ async def diagnose_patient_realtime(
     except Exception as e:
         await manager.send_message(session_id, {
             "type": "workflow_error",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        })
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-
-# Endpoint to submit follow-up responses
-@diagnosis_router.post("/patient/submit_followup_responses")
-async def submit_followup_responses(
-    session_id: str = Form(..., description="Session ID"),
-    responses: str = Form(..., description="JSON string of responses")
-):
-    """Submit follow-up question responses and continue workflow"""
-    
-    # Ensure nodes are initialized with loaded models
-    ensure_nodes_initialized()
-    
-    try:
-        import json
-        responses_dict = json.loads(responses)
-        
-        # Get current workflow state
-        if session_id not in manager.session_workflows:
-            raise HTTPException(status_code=404, detail="Session not found")
-        
-        await manager.send_message(session_id, {
-            "type": "followup_responses_received",
-            "responses": responses_dict,
-            "message": "Continuing analysis with your responses...",
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        # Update workflow state with follow-up responses
-        updated_state = AgentState(
-            session_id=session_id,
-            followup_response=responses_dict,
-            requires_user_input=False,
-            current_workflow_stage="processing_followup"
-        )
-        
-        # Continue workflow from follow-up node
-        result = await run_workflow_with_updates(updated_state, session_id)
-        
-        return {
-            "success": True,
-            "message": "Follow-up responses processed successfully",
-            "result": result
-        }
-        
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON in responses")
-    except Exception as e:
-        await manager.send_message(session_id, {
-            "type": "followup_error",
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         })

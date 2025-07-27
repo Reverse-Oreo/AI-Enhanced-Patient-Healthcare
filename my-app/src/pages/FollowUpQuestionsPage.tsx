@@ -1,231 +1,282 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { PageHeader } from 'components/layout/PageHeader';
+import { FollowUpForm } from 'components/medical/FollowUpForm';
+import { DiagnosisResults } from 'components/medical/DiagnosisResults';
+import { LoadingSpinner } from 'components/common/LoadingSpinner';
+import { Card } from 'components/common/Card';
+import { Button } from 'components/common/Button';
 import { AgentState } from 'types/medical';
 
 interface FollowUpQuestionsPageProps {
-  workflowState: AgentState | null;
+  workflowState?: AgentState | null;
+  workflowInfo?: any | null;
   loading: boolean;
   onSubmitResponses: (responses: Record<string, string>) => void;
+  onContinue?: () => void;
   onReset: () => void;
 }
 
 export const FollowUpQuestionsPage: React.FC<FollowUpQuestionsPageProps> = ({
   workflowState,
+  workflowInfo,
   loading,
   onSubmitResponses,
+  onContinue,
   onReset
 }) => {
-  const [responses, setResponses] = useState<Record<string, string>>({});
-  
-  // Extract follow-up questions from the workflow state
   const questions = workflowState?.followup_questions || [];
+  const currentStage = workflowState?.current_workflow_stage || '';
+  const followupType = workflowState?.followup_type || 'standard';
   
-  const handleResponseChange = (question: string, response: string) => {
-    setResponses(prev => ({
-      ...prev,
-      [question]: response
-    }));
+  // const isGenerating = currentStage === 'generating_followup_questions';
+  const isAwaiting = currentStage === 'awaiting_followup_responses';
+  const isComplete = currentStage === 'followup_analysis_complete' && !workflowState?.requires_user_input;
+  
+  const showForm = isAwaiting && questions.length > 0;
+  const showResults = isComplete && workflowState && !workflowState?.requires_user_input;
+
+  // Get the correct diagnosis results
+  const getDiagnosisResults = () => {
+    // Only show results if we have actual diagnosis (not during transition)
+    if (workflowState?.requires_user_input || currentStage === 'generating_followup_questions') {
+      return []; // Don't show results during transition
+    }
+
+    const followupDiagnosis = workflowState?.followup_diagnosis || [];
+    const textualAnalysis = workflowState?.textual_analysis || [];
+
+    const isPlaceholder = (diagnosis: any) => {
+      return diagnosis.text_diagnosis?.includes('Placeholder') || 
+             diagnosis.text_diagnosis?.includes('Further Evaluation Required') ||
+             diagnosis.diagnosis_confidence === null;
+    };
+    
+    // Priority: followup_diagnosis > textual_analysis, but exclude placeholders
+    if (followupDiagnosis.length > 0 && !isPlaceholder(followupDiagnosis[0])) {
+      return followupDiagnosis;
+    }
+    else if (textualAnalysis.length > 0 && !isPlaceholder(textualAnalysis[0])) {
+      return textualAnalysis;
+    }
+    
+    return [];
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const diagnosisResults = getDiagnosisResults();
+
+  const getPageSubtitle = () => {
+    // if (isGenerating) {
+    //   return 'Preparing your follow-up questions...';
+    // }
     
-    // Validate that all questions are answered
-    const unansweredQuestions = questions.filter(q => !responses[q]?.trim());
-    if (unansweredQuestions.length > 0) {
-      alert('Please answer all questions before continuing.');
-      return;
+    if (isAwaiting) {
+      if (followupType === 'skin_cancer_screening') {
+        return 'These questions help determine if image analysis is needed for skin cancer screening';
+      } else {
+        // Check if this is a transition from skin screening
+        const workflowPath = workflowState?.workflow_path || [];
+        if (workflowPath.includes('textual_to_skin_screening')) {
+          return 'Based on your skin cancer screening results, please answer these standard follow-up questions';
+        }
+        return 'Please answer these questions to improve diagnosis accuracy';
+      }
     }
     
-    try {
-      await onSubmitResponses(responses);
-    } catch (error) {
-      console.error('Failed to submit follow-up responses:', error);
+    if (isComplete) {
+      return '✅ Follow-up analysis complete - Review enhanced results below';
     }
+    
+    return 'Follow-up questions for enhanced diagnosis';
   };
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-      {/* Page Header */}
-      <div style={{
-        background: 'white',
-        padding: 'var(--spacing-lg)',
-        borderRadius: 'var(--radius-lg)',
-        boxShadow: 'var(--shadow-md)',
-        marginBottom: 'var(--spacing-lg)',
-        textAlign: 'center'
-      }}>
-        <h1 style={{ 
-          color: 'var(--primary)', 
-          marginBottom: 'var(--spacing-sm)',
-          fontSize: '2rem'
-        }}>
-          📝 Follow-Up Questions
-        </h1>
-        <p style={{ color: 'var(--secondary)', margin: 0 }}>
-          Please answer these questions to improve diagnosis accuracy
-        </p>
-        
-        <div style={{
-          background: '#e3f2fd',
-          padding: 'var(--spacing-sm)',
-          borderRadius: 'var(--radius-sm)',
-          marginTop: 'var(--spacing-md)',
-          fontSize: '14px',
-          color: 'var(--primary)'
-        }}>
-          💡 Step 2 of 6: Enhanced symptom analysis
-        </div>
-      </div>
+      <PageHeader
+        title={followupType === 'skin_cancer_screening' ? 
+          "🔍 Skin Cancer Screening Questions" : 
+          "📝 Follow-Up Questions"
+        }
+        subtitle={getPageSubtitle()}
+        step={{
+          current: 2,
+          total: 6,
+          description: followupType === 'skin_cancer_screening' ? 
+            "Skin cancer risk assessment" : 
+            "Enhanced symptom analysis"
+        }}
+        variant={isComplete ? 'success' : 'default'}
+      />
 
-      {/* Show initial diagnosis results */}
-      {workflowState?.textual_analysis && workflowState.textual_analysis.length > 0 && (
-        <div style={{
-          background: '#f8f9fa',
-          border: '1px solid #e9ecef',
-          borderRadius: 'var(--radius-lg)',
-          padding: 'var(--spacing-lg)',
-          marginBottom: 'var(--spacing-lg)'
-        }}>
-          <h3 style={{ margin: '0 0 var(--spacing-md) 0' }}>
-            📋 Initial Analysis Summary
-          </h3>
-          
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 'var(--spacing-md)',
-            marginBottom: 'var(--spacing-md)'
-          }}>
-            <div>
-              <strong>Top Diagnosis:</strong>
-              <div style={{ color: 'var(--primary)' }}>
-                {workflowState.textual_analysis[0]?.text_diagnosis}
-              </div>
-            </div>
-            <div>
-              <strong>Average Confidence:</strong>
-              <div style={{ color: 'var(--warning)' }}>
-                {workflowState.average_confidence ? 
-                  `${(workflowState.average_confidence * 100).toFixed(1)}%` : 
-                  'N/A'
-                }
-              </div>
-            </div>
-          </div>
-          
-          <div style={{
-            background: '#fff3cd',
-            border: '1px solid var(--warning)',
-            borderRadius: 'var(--radius-md)',
-            padding: 'var(--spacing-sm)',
-            fontSize: '14px'
-          }}>
-            ⚠️ Low confidence detected - additional information needed
-          </div>
-        </div>
+      {showForm && followupType === 'standard' && workflowState?.workflow_path?.includes('textual_to_skin_screening') && (
+        <Card variant="primary" style={{ marginBottom: 'var(--spacing-lg)' }}>
+          <h5 style={{ margin: '0 0 var(--spacing-sm) 0', color: 'var(--primary)' }}>
+            ✅ Skin Cancer Screening Complete
+          </h5>
+          <p style={{ margin: 0, fontSize: '14px', color: 'var(--primary)' }}>
+            Your skin cancer screening results indicate low risk. We'll now ask some standard 
+            follow-up questions to provide a more accurate diagnosis for your skin condition.
+          </p>
+        </Card>
       )}
 
-      {/* Follow-up Questions Form */}
-      {questions.length > 0 ? (
-        <div style={{
-          background: 'white',
-          padding: 'var(--spacing-lg)',
-          borderRadius: 'var(--radius-lg)',
-          boxShadow: 'var(--shadow-md)',
-          marginBottom: 'var(--spacing-lg)'
-        }}>
+      {/* Generating Questions
+      {isGenerating && (
+        <Card variant="primary" style={{ marginBottom: 'var(--spacing-lg)' }}>
+          <h5 style={{ margin: '0 0 var(--spacing-sm) 0', color: 'var(--primary)' }}>
+            ✅ Skin Cancer Screening Complete
+          </h5>
+          <p style={{ margin: 0, fontSize: '14px', color: 'var(--primary)' }}>
+            Your skin cancer screening results indicate <strong>low risk</strong>. We're now generating 
+            standard follow-up questions to provide a more accurate diagnosis for your skin condition.
+          </p>
+          <div style={{ marginTop: 'var(--spacing-md)' }}>
+            <LoadingSpinner 
+              message="Generating personalized follow-up questions..."
+              size="sm"
+            />
+          </div>
+        </Card>
+      )} */}
+
+      {/* Questions Form */}
+      {showForm && (
+        <Card>
           <h3 style={{ 
             color: 'var(--dark)', 
             marginBottom: 'var(--spacing-md)',
-            fontSize: '1.25rem'
+            fontSize: '1.3rem'
           }}>
-            Additional Questions ({questions.length})
+            {followupType === 'skin_cancer_screening' ? 
+              '🔍 Skin Cancer Screening Questions' : 
+              '📋 Follow-Up Questions'
+            }
           </h3>
           
-          <form onSubmit={handleSubmit}>
-            {questions.map((question, index) => (
-              <div key={index} style={{ marginBottom: 'var(--spacing-lg)' }}>
-                <label style={{ 
-                  display: 'block', 
-                  marginBottom: 'var(--spacing-sm)',
-                  fontWeight: '600',
-                  color: 'var(--dark)'
-                }}>
-                  {index + 1}. {question}
-                </label>
-                <textarea
-                  value={responses[question] || ''}
-                  onChange={(e) => handleResponseChange(question, e.target.value)}
-                  placeholder="Please provide a detailed answer..."
-                  disabled={loading}
-                  style={{
-                    width: '100%',
-                    padding: 'var(--spacing-md)',
-                    border: '2px solid #e9ecef',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: '16px',
-                    minHeight: '80px',
-                    resize: 'vertical',
-                    fontFamily: 'inherit',
-                    lineHeight: '1.5'
-                  }}
-                />
-              </div>
-            ))}
-
-            <button
-              type="submit"
-              disabled={loading || questions.some(q => !responses[q]?.trim())}
-              style={{
-                width: '100%',
-                padding: 'var(--spacing-md)',
-                background: loading ? 'var(--secondary)' : 'var(--primary)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                fontSize: '18px',
-                fontWeight: '600',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                transition: 'background 0.2s ease'
-              }}
-            >
-              {loading ? '🧠 Processing Responses...' : '✅ Submit Answers'}
-            </button>
-          </form>
-        </div>
-      ) : (
-        <div style={{
-          background: '#fff3cd',
-          border: '2px solid var(--warning)',
-          borderRadius: 'var(--radius-lg)',
-          padding: 'var(--spacing-lg)',
-          textAlign: 'center'
-        }}>
-          <h3 style={{ color: 'var(--warning)', margin: 0 }}>
-            ⏳ Generating Follow-Up Questions...
-          </h3>
-          <p style={{ margin: 'var(--spacing-sm) 0 0 0' }}>
-            Please wait while we prepare personalized questions based on your symptoms.
+          <p style={{ 
+            color: 'var(--secondary)', 
+            marginBottom: 'var(--spacing-lg)',
+            fontSize: '14px'
+          }}>
+            {followupType === 'skin_cancer_screening' ? 
+              'These questions help determine if your skin symptoms require image analysis for potential skin cancer screening. Please answer as accurately as possible.' :
+              'These additional questions will help improve the accuracy of your diagnosis.'
+            }
           </p>
-        </div>
+          
+          {/* Skin Cancer Screening Info */}
+          {followupType === 'skin_cancer_screening' && (
+            <div style={{ 
+              background: '#e3f2fd', 
+              border: '1px solid #bbdefb',
+              padding: 'var(--spacing-md)',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: 'var(--spacing-lg)'
+            }}>
+              <h5 style={{ margin: '0 0 var(--spacing-sm) 0', color: '#1976d2' }}>
+                📋 About Skin Cancer Screening
+              </h5>
+              <p style={{ margin: 0, fontSize: '14px', color: '#1976d2' }}>
+                We use the ABCDE criteria (Asymmetry, Border, Color, Diameter, Evolving) 
+                to assess potential skin cancer risk. If our screening suggests further evaluation 
+                is needed, we'll ask you to upload an image for AI analysis.
+              </p>
+            </div>
+          )}
+
+          <FollowUpForm
+            questions={questions}
+            onSubmit={onSubmitResponses}
+            loading={loading}
+            followupType={followupType}
+          />
+        </Card>
+      )}
+
+      {/* Enhanced Results Section */}
+      {showResults && diagnosisResults.length > 0 && (
+        <>
+          {/* Skin Cancer Risk Detection Alert */}
+          {workflowState?.skin_cancer_risk_detected && (
+            <Card variant="warning" style={{ marginBottom: 'var(--spacing-lg)' }}>
+              <h4 style={{ margin: '0 0 var(--spacing-sm) 0', color: '#856404' }}>
+                ⚠️ Skin Cancer Risk Detected
+              </h4>
+              <p style={{ margin: 0, fontSize: '14px', color: '#856404' }}>
+                Based on your screening responses, we recommend proceeding to image analysis 
+                for a more detailed assessment of your skin condition.
+              </p>
+            </Card>
+          )}
+
+          {/* Enhanced Diagnosis Results */}
+          <DiagnosisResults
+            results={diagnosisResults}
+            averageConfidence={workflowState.average_confidence || 0}
+            imageRequired={workflowState.image_required || false}
+            onContinue={onContinue}
+            loading={loading}
+            title={workflowState?.skin_cancer_risk_detected ? 
+              "📊 Skin Cancer Risk Assessment Results" :
+              "📊 Enhanced Diagnosis Results"
+            }
+            subtitle={workflowState?.skin_cancer_risk_detected ? 
+              "Image analysis recommended for further evaluation" :
+              "Results improved with follow-up information"
+            }
+            context="followup_complete"
+            hideFollowUpMessage={true}
+          />
+
+          {/* Follow-up Q&A Summary */}
+          {workflowState.followup_response && Object.keys(workflowState.followup_response).length > 0 && (
+            <Card style={{ marginTop: 'var(--spacing-lg)' }}>
+              <details style={{ cursor: 'pointer' }}>
+                <summary style={{ 
+                  fontWeight: '600', 
+                  color: 'var(--primary)',
+                  fontSize: '1.1rem',
+                  marginBottom: 'var(--spacing-sm)'
+                }}>
+                  📝 Your {followupType === 'skin_cancer_screening' ? 'Screening' : 'Follow-Up'} Responses
+                </summary>
+                <div style={{ 
+                  background: '#f8f9fa', 
+                  padding: 'var(--spacing-md)', 
+                  borderRadius: 'var(--radius-md)',
+                  marginTop: 'var(--spacing-sm)'
+                }}>
+                  {Object.entries(workflowState.followup_response).map(([question, response], index) => (
+                    <div key={index} style={{ marginBottom: 'var(--spacing-sm)' }}>
+                      <div style={{ 
+                        fontSize: '14px', 
+                        fontWeight: '600', 
+                        color: 'var(--dark)',
+                        marginBottom: '2px'
+                      }}>
+                        Q{index + 1}: {question}
+                      </div>
+                      <div style={{ 
+                        fontSize: '14px', 
+                        color: 'var(--secondary)',
+                        paddingLeft: 'var(--spacing-sm)',
+                        borderLeft: '2px solid var(--primary)'
+                      }}>
+                        A: {response}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </Card>
+          )}
+        </>
       )}
 
       {/* Reset Option */}
-      <div style={{ textAlign: 'center', marginTop: 'var(--spacing-md)' }}>
-        <button
-          onClick={onReset}
-          style={{
-            padding: 'var(--spacing-sm) var(--spacing-md)',
-            background: 'transparent',
-            color: 'var(--secondary)',
-            border: '1px solid var(--secondary)',
-            borderRadius: 'var(--radius-md)',
-            cursor: 'pointer',
-            fontSize: '14px'
-          }}
-        >
+      <div style={{ textAlign: 'center', marginTop: 'var(--spacing-lg)' }}>
+        <Button onClick={onReset} variant="secondary" size="sm">
           🔄 Start Over
-        </button>
+        </Button>
       </div>
     </div>
   );

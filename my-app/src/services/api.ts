@@ -22,7 +22,7 @@ export class ApiService {
     }
   }
 
-  // ✅ NODE 1: Start with textual analysis
+  //NODE 1: textual analysis
   static async startTextualAnalysis(request: DiagnosisRequest): Promise<any> {
     try {
       const formData = new FormData();
@@ -72,7 +72,7 @@ export class ApiService {
     }
   }
 
-  // ✅ NODE 2: Follow-up questions
+  //NODE 2: Follow-up questions
   static async runFollowupQuestions(sessionId: string, previousState: any, responses?: Record<string, string>): Promise<any> {
     try {
       const formData = new FormData();
@@ -90,11 +90,6 @@ export class ApiService {
         body: formData
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Follow-up failed: HTTP ${response.status} - ${errorText}`);
-      }
-
       return await response.json();
 
     } catch (error) {
@@ -103,7 +98,7 @@ export class ApiService {
     }
   }
 
-  // ✅ NODE 3: Image analysis
+  //NODE 3: Image analysis
   static async runImageAnalysis(sessionId: string, previousState: any, image?: File): Promise<any> {
     try {
       const formData = new FormData();
@@ -134,7 +129,7 @@ export class ApiService {
     }
   }
 
-  // ✅ NODE 4: Overall analysis
+  //NODE 4: Overall analysis
   static async runOverallAnalysis(sessionId: string, previousState: any): Promise<any> {
     try {
       const formData = new FormData();
@@ -161,34 +156,7 @@ export class ApiService {
     }
   }
 
-  // ✅ NODE 5: Healthcare recommendations
-  static async runHealthcareRecommendations(sessionId: string, previousState: any): Promise<any> {
-    try {
-      const formData = new FormData();
-      formData.append('session_id', sessionId);
-      formData.append('previous_state', JSON.stringify(previousState));
-
-      console.log('🏥 Running healthcare recommendations:', { sessionId });
-
-      const response = await fetch(`${API_BASE_URL}/patient/healthcare_recommendations`, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Healthcare recommendations failed: HTTP ${response.status} - ${errorText}`);
-      }
-
-      return await response.json();
-
-    } catch (error) {
-      console.error('❌ Healthcare recommendations failed:', error);
-      throw error;
-    }
-  }
-
-  // ✅ NODE 6: Medical report
+  //NODE Final: Medical report
   static async runMedicalReport(sessionId: string, previousState: any): Promise<any> {
     try {
       const formData = new FormData();
@@ -211,6 +179,40 @@ export class ApiService {
 
     } catch (error) {
       console.error('❌ Medical report failed:', error);
+      throw error;
+    }
+  }
+  
+    //PDF/Word generation 
+  static async exportMedicalReport(
+    sessionId: string, 
+    format: 'pdf' | 'word', 
+    reportData: any,
+    includeDetails: boolean = true
+  ): Promise<Blob> {
+    try {
+      console.log(`📄 Exporting medical report as ${format.toUpperCase()}:`, { sessionId, format });
+
+      const formData = new FormData();
+      formData.append('session_id', sessionId);
+      formData.append('format', format);
+      formData.append('include_details', includeDetails.toString());
+      formData.append('report_data', JSON.stringify(reportData));
+
+      const response = await fetch(`${API_BASE_URL}/patient/export_report`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Export failed: HTTP ${response.status} - ${errorText}`);
+      }
+
+      return await response.blob();
+
+    } catch (error) {
+      console.error(`❌ ${format.toUpperCase()} export failed:`, error);
       throw error;
     }
   }

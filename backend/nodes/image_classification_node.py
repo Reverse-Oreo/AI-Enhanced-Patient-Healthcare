@@ -3,28 +3,28 @@ import io
 import torch
 from PIL import Image
 from adapters.skinlesion_efficientNet_adapter import EfficientNetAdapter
-from typing import Dict, Any
+from typing import Any
+from managers.model_manager import model_manager
 import base64
     
 class ImageClassificationNode:
     def __init__(self, adapter: EfficientNetAdapter):
         self.adapter = adapter
-    
-    async def __call__(self, state: Dict[str, Any]) -> Dict[str, Any]:
+
+    async def __call__(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Classify uploaded medical image"""
         print("📸 IMAGE CLASSIFICATION NODE CALLED!")
-        print(f"    Has image: {bool(state.get('image_input'))}")
-        
-        # Set stage when node starts
+
         state["current_workflow_stage"] = "analyzing_image"
         
+        # Process the image
         state = await self.classify_skinLesion(state)
         
         state["current_workflow_stage"] = "image_analysis_complete"
-        print("✅ Image analysis completed successfully")
-        
+        print("✅ Image classification complete")
         return state
         
-    async def classify_skinLesion(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    async def classify_skinLesion(self, state: dict[str, Any]) -> dict[str, Any]:
         image_input = state.get("image_input")
         
         if not image_input:

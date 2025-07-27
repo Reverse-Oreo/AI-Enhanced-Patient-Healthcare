@@ -16,7 +16,7 @@ class ModelInterface(ABC):
     async def load_model(self) -> None:
         """Load the model into memory. This is called once at startup."""
         pass
-    
+
     
     
     @abstractmethod
@@ -26,45 +26,34 @@ class ModelInterface(ABC):
         distinct from general LLM use"""
         pass
     
-    @abstractmethod
-    async def generate_followup_questions(self, diagnosis, reasoning, confidence) -> str:
-        """Generates follow-up questions based on the diagnosis, reasoning, and confidence level.
-        This is used to refine the diagnosis or gather more information."""
-        pass
-    
-    @abstractmethod 
-    async def generate_self_care_advice(self, prompt: str) -> str:
-        """Generates self-care advice based on the user's symptoms or diagnosis.
-        This is used to provide users with actionable steps they can take."""
-        pass
+    # @abstractmethod
+    # async def generate_followup_questions(self, diagnosis, reasoning, confidence) -> str:
+    #     """Generates follow-up questions based on the diagnosis, reasoning, and confidence level.
+    #     This is used to refine the diagnosis or gather more information."""
+    #     pass
     
     @abstractmethod
-    async def generate_enhanced_textual_analysis(self, symptoms: str, diagnosis: str, confidence: float) -> str:
+    async def generate_overall_instance1(self, symptoms: str, diagnosis: str, confidence: float) -> str:
         """Generate enhanced analysis for textual-only workflow (Instance 1)"""
         pass
 
     @abstractmethod
-    async def generate_combined_analysis(self, skin_symptoms: str, image_diagnosis: str, image_confidence: Dict) -> str:
+    async def generate_overall_instance2(self, skin_symptoms: str, image_diagnosis: str, image_confidence: Dict) -> str:
         """Generate analysis for textual + image workflow (Instance 2)"""
         pass
 
     @abstractmethod
-    async def generate_followup_enhanced_analysis(self, original_symptoms: str, followup_responses: Dict, enhanced_diagnosis: str, enhanced_confidence: float) -> str:
+    async def generate_overall_instance3(self, original_symptoms: str, followup_responses: Dict, enhanced_diagnosis: str, enhanced_confidence: float) -> str:
         """Generate analysis for textual + follow-up workflow (Instance 3)"""
         pass
 
-    @abstractmethod
-    async def generate_comprehensive_analysis(self, original_symptoms: str, followup_responses: Dict, followup_diagnosis: Dict, skin_symptoms: str, image_analysis: Dict) -> str:
-        """Generate comprehensive analysis for all data workflow (Instance 4)"""
-        pass
+    # @abstractmethod
+    # async def generate_overall_instance4(self, original_symptoms: str, followup_responses: Dict, followup_diagnosis: Dict, skin_symptoms: str, image_analysis: Dict) -> str:
+    #     """Generate comprehensive analysis for all data workflow (Instance 4)"""
+    #     pass
     
     @abstractmethod
     async def generate_medical_report(self, report_prompt: str) -> str:
         """Generates a medical report based on the provided report prompt.
         This is used to compile all relevant information into a structured report."""
         pass
-    
-    ##Testing Functionalities
-    
-
-    

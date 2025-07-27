@@ -9,6 +9,8 @@ from typing import Dict
 from api.diagnosis_routes import diagnosis_router
 from managers.websocket_manager import ConnectionManager
 from managers.model_manager import model_manager #Global variable to initiallize models here in main.py and carry over to diagnosis_routes.py for model usage
+from nodes import LLMDiagnosisNode, ImageClassificationNode, FollowUpInteractionNode, OverallAnalysisNode, HealthcareRecommendationNode, MedicalReportNode 
+from contextlib import asynccontextmanager
 
 # Simple logging setup
 logging.basicConfig(
@@ -17,11 +19,46 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Lifespan event handler
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # STARTUP
+    print("🚀 AI Medical Diagnosis API starting...")
+    
+    # Load all models once
+    try:
+        model_info = await model_manager.load_all_models()
+        print(f"📊 Model loading summary:")
+        print(f"   • Total load time: {model_info['load_time_seconds']}s")
+        print(f"   • LLM model loaded: {model_info['local_adapter_loaded']}")
+        print(f"   • Skin model: On-demand loading")  
+        print(f"   • Embedding model: On-demand loading")  
+        
+        from api.diagnosis_routes import initialize_nodes_once
+        initialize_nodes_once()
+        print("✅ All nodes initialized with pre-loaded models!")
+    except Exception as e:
+        print(f"❌ Model loading failed: {e}")
+        print("⚠️ API will start but models may not be available")
+    
+    print(f"📋 Available routes:")
+    for route in app.routes:
+        if hasattr(route, 'methods') and hasattr(route, 'path'):
+            print(f"   {list(route.methods)} {route.path}")
+    print("✅ Startup complete!")
+    
+    yield 
+    
+    print("🛑 Shutting down API...")
+    await model_manager.cleanup()
+    print("✅ Shutdown complete!")
+
 # Create FastAPI app
 app = FastAPI(
     title="AI Medical Diagnosis Assistant",
     description="Medical AI system with LangGraph workflow",
     version="2.0.0",
+    lifespan=lifespan
 )
 
 # Middleware setup
@@ -87,36 +124,6 @@ async def root():
             "textual_analysis": "/patient/textual_analysis"
         }
     }
-
-# ✅ STARTUP EVENT: Load models once on startup
-@app.on_event("startup")
-async def startup_event():
-    print("🚀 AI Medical Diagnosis API starting...")
-    
-    # Load all models once
-    try:
-        model_info = await model_manager.load_all_models()
-        print(f"📊 Model loading summary:")
-        print(f"   • Total load time: {model_info['load_time_seconds']}s")
-        print(f"   • LLM loaded: {model_info['local_adapter_loaded']}")
-        print(f"   • Skin model loaded: {model_info['skin_adapter_loaded']}")
-        print(f"   • Embedding model loaded: {model_info['embedding_adapter_loaded']}")
-    except Exception as e:
-        print(f"❌ Model loading failed: {e}")
-        print("⚠️ API will start but models may not be available")
-    
-    print(f"📋 Available routes:")
-    for route in app.routes:
-        if hasattr(route, 'methods') and hasattr(route, 'path'):
-            print(f"   {list(route.methods)} {route.path}")
-    print("✅ Startup complete!")
-
-# ✅ SHUTDOWN EVENT: Cleanup models
-@app.on_event("shutdown")
-async def shutdown_event():
-    print("🛑 Shutting down API...")
-    await model_manager.cleanup()
-    print("✅ Shutdown complete!")
 
 if __name__ == "__main__":
     import uvicorn

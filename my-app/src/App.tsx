@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import { WorkflowRouter } from 'workflow/WorkflowRouter';
+import { WorkflowRouter } from 'WorkflowRouter';
 import { useDiagnosis } from 'hooks/useDiagnosis';
 
 function App(): React.JSX.Element {
@@ -14,7 +14,6 @@ function App(): React.JSX.Element {
     startDiagnosis, 
     submitFollowUp,
     submitImageAnalysis,
-    continueWorkflow,
     continueToNextStep,
     testConnection, 
     reset 
@@ -34,11 +33,19 @@ const handleStartDiagnosis = async (symptoms: string) => {
 };
 
 const handleContinueToNext = async () => {
+  console.log('🔄 handleContinueToNext called');
+  console.log('Current result:', result);
+  console.log('Current stage:', currentStage);
+  console.log('Current workflowInfo:', workflowInfo);
+
   try {
-    const result = await continueToNextStep();
-    
-    if (result?.needsImageUpload) {
-      console.log('📸 Ready for image upload');
+    const continueResult = await continueToNextStep();
+    console.log('✅ Continue result:', continueResult);
+
+    if (continueResult?.workflowComplete) {
+      console.log('✅ Workflow complete');
+    } else {
+      console.log('🔄 Workflow step completed, continuing...');
     }
     
   } catch (err) {
@@ -48,17 +55,18 @@ const handleContinueToNext = async () => {
 
 const handleSubmitFollowUp = async (responses: Record<string, string>) => {
   try {
-    await submitFollowUp(responses);
+    console.log('📝 Submitting follow-up responses:', responses);
     
-    // Auto-continue workflow
-    setTimeout(async () => {
-      try {
-        await continueWorkflow();
-      } catch (err) {
-        console.log('Workflow completed or needs user input');
-      }
-    }, 1000);
-    
+    let result = await submitFollowUp(responses);
+    console.log('✅ Follow-up submitted successfully:', result);
+
+    // skin cancer screening -> standard follow-up requires the follow-up interaction node to run twice to generate questions and process responses distinctively
+    // if (result?.workflow_info?.needs_user_input === "followup_questions2") {
+    //   console.log("🔁 Detected need for second follow-up submission...");
+    //   result = await submitFollowUp(responses);
+    //   console.log("✅ Second follow-up submitted successfully:", result);
+    // }
+
   } catch (err) {
     console.error('❌ Follow-up submission failed:', err);
   }
@@ -66,12 +74,15 @@ const handleSubmitFollowUp = async (responses: Record<string, string>) => {
 
 const handleImageSubmit = async (image: File) => {
   try {
-    await submitImageAnalysis(image);
+    console.log('Submitting image for analysis:', image.name)
+
+    const result = await submitImageAnalysis(image);
+    console.log('Image analysis completed:', result);
     
     // Auto-continue workflow
     setTimeout(async () => {
       try {
-        await continueWorkflow();
+        await continueToNextStep();
       } catch (err) {
         console.log('Workflow completed');
       }
@@ -144,9 +155,10 @@ const handleImageSubmit = async (image: File) => {
           loading={loading}
           error={error}
           sessionId={sessionId}
+          workflowInfo={workflowInfo}
           onStartDiagnosis={handleStartDiagnosis}
           onContinue={handleContinueToNext}
-          onSubmitFollowUp={handleSubmitFollowUp}
+          onSubmitFollowUp={handleSubmitFollowUp} 
           onSubmitImage={handleImageSubmit}
           onReset={reset}
         />
@@ -162,7 +174,7 @@ const handleImageSubmit = async (image: File) => {
         fontSize: '12px',
         color: 'var(--secondary)'
       }}>
-        <p>🔍 Debug: Session {sessionId} | Stage: {currentStage || 'none'}</p>
+        <p>🔍 Debug: {sessionId} | Stage: {currentStage || 'none'}</p>
         <p>Node-Based API: Each workflow step is an independent endpoint</p>
       </footer>
     </div>

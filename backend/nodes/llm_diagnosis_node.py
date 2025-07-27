@@ -1,14 +1,11 @@
-from typing import List, TypedDict, Tuple
+from typing import TypedDict, Tuple
 import re
 # from models.ai_schema import SymptomAnalysis  # We still use this to define and validate the output schema
 from adapters.local_model_adapter import LocalModelAdapter
 from schemas.medical_schemas import TextualSymptomAnalysisResult
 
-import re
-from typing import List, TypedDict
-
-def parse_diagnosis_details(raw_response: str) -> List[TextualSymptomAnalysisResult]:
-    results: List[TextualSymptomAnalysisResult] = []
+def parse_diagnosis_details(raw_response: str) -> list[TextualSymptomAnalysisResult]:
+    results: list[TextualSymptomAnalysisResult] = []
     
     # --- Extract Each Diagnosis Block ---
     diagnosis_pattern = re.compile(
@@ -32,17 +29,27 @@ def parse_diagnosis_details(raw_response: str) -> List[TextualSymptomAnalysisRes
 
 class LLMDiagnosisNode:
     def __init__(self, adapter: LocalModelAdapter):
-        self.adapter = adapter
+        self.adapter = adapter 
     
     async def __call__(self, state:dict) -> dict:
         state["current_workflow_stage"] = "textual_analysis"
         
         print("🩺 LLM DIAGNOSIS NODE CALLED!")
         print(f"    Input: {state.get('latest_user_message', 'NO MESSAGE')}")
-        print(f"    Stage: {state.get('current_workflow_stage', 'NO STAGE')}")
         
         # Process the diagnosis
         state = await self.diagnose(state)
+        
+        # Workflow path set based on logic
+        workflow_path = []
+        
+        #Determine initial path 
+        if state.get("image_required", False):
+            workflow_path.append("textual_to_image")
+        else:
+            workflow_path.append("textual_only")
+        
+        state["workflow_path"] = workflow_path
         
         print(f"✅ LLM Diagnosis complete - found {len(state.get('textual_analysis', []))} diagnoses")
         
@@ -53,25 +60,40 @@ class LLMDiagnosisNode:
         text = state.get("latest_user_message", "")
         
         # Pre-filter for skin conditions
-        skin_keywords = ['skin', 'mole', 'lesion', 'growth', 'bump', 'spot', 'rash', 'patch', 'scab']
-        is_skin_related = any(keyword in text.lower() for keyword in skin_keywords)
+        skin_cancer_keywords = [
+            'mole', 'lesion', 'growth', 'bump', 'spot', 'rash', 'patch', 'scab',
+            'discoloration', 'freckle', 'birthmark', 'wart', 'cyst', 'lump',
+            'melanoma', 'cancer', 'tumor', 'nevus', 'seborrheic', 'keratosis',
+            'changing', 'bleeding', 'itching', 'crusting', 'ulceration',
+            'asymmetric', 'irregular', 'diameter', 'evolving', 'abcde'
+        ]
         
-        if is_skin_related:
-            state["userInput_skin_symptoms"] = text # Store user input (skin symptoms) to be used later with skin_lesion_analysis for overall analysis
-            state["image_required"] = True 
+        general_skin_keywords = [
+            'skin', 'dermatitis', 'eczema', 'psoriasis', 'acne', 'hives',
+            'rosacea', 'fungal', 'bacterial', 'viral', 'infection'
+        ]
+        
+        # Check for skin cancer specific symptoms
+        has_skin_cancer_indicators = any(keyword in text.lower() for keyword in skin_cancer_keywords)
+        has_general_skin_symptoms = any(keyword in text.lower() for keyword in general_skin_keywords)
+        
+        if has_skin_cancer_indicators or has_general_skin_symptoms:
+            state["userInput_skin_symptoms"] = text
+            state["requires_skin_cancer_screening"] = True
 
             placeholder_skin_diagnoses = [
-                {"text_diagnosis": "Skin Condition (Image Analysis Required)", "diagnosis_confidence": 0.5},
-                {"text_diagnosis": "Dermatological Assessment Needed", "diagnosis_confidence": 0.4},
-                {"text_diagnosis": "Visual Examination Required", "diagnosis_confidence": 0.3}
+                {"text_diagnosis": "Possible Skin Cancer Condition (Further Evaluation Required)", "diagnosis_confidence": None},
             ]
             
             state["textual_analysis"] = placeholder_skin_diagnoses
-            state["average_confidence"] = 0.4  # Low confidence to ensure proper routing
+            state["average_confidence"] = 0.0
             
             return state
         else:
             state["userInput_symptoms"] = text # Store user input (non-skin symptoms) to be used later with textual_analysis for overall analysis
+            state["requires_skin_cancer_screening"] = False
+
+            # Get Q8 model for diagnosis
             output = await self.adapter.generate_diagnosis(text)
             
             #parse multiple diagnoses
@@ -80,6 +102,6 @@ class LLMDiagnosisNode:
             #Save list to the agent state
             state["textual_analysis"] = parsed_diagnosis
             #Save bool to indicate if image is required
-            state["image_required"] = False #When diagnosis is needed to be parsed from llm response, then it is assumed that image is not required 
+            state["image_required"] = False 
 
             return state

@@ -50,7 +50,7 @@ class ModelManager:
         logger.info("🏗️ ModelManager singleton created")
     
     async def load_all_models(self) -> Dict[str, Any]:
-        """Load all models once. Thread-safe and async-safe."""
+        """Load only LLM model initially. Skin/embedding models loaded on demand."""
         
         async with self._loading_lock:
             if self._models_loaded:
@@ -61,26 +61,25 @@ class ModelManager:
             self.load_start_time = time.time()
             
             try:
-                # Create adapters
-                logger.info("📦 Creating model adapters...")
+                # Create LLM adapter (always needed)
+                logger.info("📦 Creating LLM model adapter...")
                 self.local_adapter = LocalModelAdapter(llm_path=self.multipurpose_model_path)
+                
+                # 🔧 CHANGE: Only load LLM model initially
+                logger.info("⏳ Loading LLM model...")
+                await self._load_llm_model()
+                
+                # 🔧 NEW: Create other adapters but don't load them yet
+                logger.info("📦 Creating skin and embedding adapters (not loading yet)...")
                 self.efficientnet_adapter = EfficientNetAdapter(model_path=self.skin_model_path)
                 self.embedder_adapter = EmbedderAdapter(model_name=self.embedding_model_name)
-                
-                # Load models concurrently for faster startup
-                logger.info("⏳ Loading models concurrently...")
-                await asyncio.gather(
-                    self._load_llm_model(),
-                    self._load_skin_model(),
-                    self._load_embedding_model(),
-                    return_exceptions=True
-                )
                 
                 self.load_end_time = time.time()
                 self._models_loaded = True
                 
                 load_time = self.load_end_time - self.load_start_time
-                logger.info(f"✅ All models loaded successfully in {load_time:.2f}s")
+                logger.info(f"✅ LLM model loaded successfully in {load_time:.2f}s")
+                logger.info("📋 Skin and embedding models will be loaded on demand")
                 
                 return self._get_model_info()
                 
@@ -96,27 +95,29 @@ class ModelManager:
             logger.info("✅ LLM model loaded")
         except Exception as e:
             logger.error(f"❌ LLM model loading failed: {e}")
-            # Don't raise - allow other models to load
+            raise  
     
     async def _load_skin_model(self):
-        """Load skin lesion model with error handling"""
+        """Load skin lesion model on demand"""
         try:
-            logger.info("🔬 Loading skin lesion model...")
-            await self.efficientnet_adapter.load_model()
-            logger.info("✅ Skin lesion model loaded")
+            if not hasattr(self.efficientnet_adapter, 'model') or self.efficientnet_adapter.model is None:
+                logger.info("🔬 Loading skin lesion model on demand...")
+                await self.efficientnet_adapter.load_model()
+                logger.info("✅ Skin lesion model loaded")
         except Exception as e:
             logger.error(f"❌ Skin lesion model loading failed: {e}")
-            # Don't raise - allow other models to load
+            raise
     
     async def _load_embedding_model(self):
-        """Load embedding model with error handling"""
+        """Load embedding model on demand"""
         try:
-            logger.info("📊 Loading embedding model...")
-            await self.embedder_adapter.load_model()
-            logger.info("✅ Embedding model loaded")
+            if not hasattr(self.embedder_adapter, 'model') or self.embedder_adapter.model is None:
+                logger.info("📊 Loading embedding model on demand...")
+                await self.embedder_adapter.load_model()
+                logger.info("✅ Embedding model loaded")
         except Exception as e:
             logger.error(f"❌ Embedding model loading failed: {e}")
-            # Don't raise - allow other models to load
+            raise
     
     def _get_model_info(self) -> Dict[str, Any]:
         """Get model loading information"""
@@ -142,18 +143,28 @@ class ModelManager:
             return None
         return self.local_adapter
     
-    def get_efficientnet_adapter(self) -> Optional[EfficientNetAdapter]:
-        """Get the skin lesion adapter instance"""
+    async def get_efficientnet_adapter(self) -> Optional[EfficientNetAdapter]:
+        """Get the skin lesion adapter instance (load on demand)"""
         if not self._models_loaded:
             logger.warning("⚠️ Models not loaded yet. Call load_all_models() first.")
             return None
+        
+        #Load on demand
+        if not hasattr(self.efficientnet_adapter, 'model') or self.efficientnet_adapter.model is None:
+            await self._load_skin_model()
+        
         return self.efficientnet_adapter
     
-    def get_embedder_adapter(self) -> Optional[EmbedderAdapter]:
-        """Get the embedding adapter instance"""
+    async def get_embedder_adapter(self) -> Optional[EmbedderAdapter]:
+        """Get the embedding adapter instance (load on demand)"""
         if not self._models_loaded:
             logger.warning("⚠️ Models not loaded yet. Call load_all_models() first.")
             return None
+        
+        #Load on demand
+        if not hasattr(self.embedder_adapter, 'model') or self.embedder_adapter.model is None:
+            await self._load_embedding_model()
+        
         return self.embedder_adapter
     
     def is_loaded(self) -> bool:

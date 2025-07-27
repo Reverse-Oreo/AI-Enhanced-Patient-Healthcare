@@ -14,7 +14,12 @@
     "react-dom": "^19.1.0",
     "react-scripts": "5.0.1",
     "typescript": "^5.8.3",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "jspdf": "^2.5.1",
+    "docx": "^8.2.2"
+  },
+  "devDependencies": {
+    "@types/jspdf": "^2.3.0"
   },
   "scripts": {
     "start": "react-scripts start",

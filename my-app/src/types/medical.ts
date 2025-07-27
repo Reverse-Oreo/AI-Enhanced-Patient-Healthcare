@@ -4,6 +4,7 @@
 export type WorkflowPathType = 
   | "textual_only"           // Instance 1: Direct textual analysis
   | "textual_to_image"       // Instance 2: Textual -> Image
+  | "textual_to_skin_screening"   // Instance 2: Textual -> Skin Cancer Screening -> Image
   | "textual_to_followup"    // Instance 3 & 4: Textual -> Follow-up (start)
   | "followup_only"          // Instance 3: Follow-up -> Overall analysis
   | "followup_to_image";     // Instance 4: Follow-up -> Image -> Overall analysis
@@ -25,7 +26,8 @@ export interface OverallAnalysisResult {
   final_diagnosis: string;
   final_confidence: number;
   final_severity: string;  // mild/moderate/severe/critical/emergency
-  reasoning: string;       // Medical justification
+  user_explanation: string;
+  clinical_reasoning: string; 
   specialist_recommendation: string; // For Google Maps integration
 }
 
@@ -44,33 +46,33 @@ export interface HealthcareRecommendationResult {
   cost_estimates?: Record<string, string> | null;
 }
 
-// Matches AgentState exactly - THIS IS CRITICAL!
 export interface AgentState {
   // Required fields
   session_id: string;
-  latest_user_message: string;
-  image_required: boolean;
-  
-  // Optional workflow control
   current_workflow_stage?: string | null;
-  workflow_path?: WorkflowPathType[] | null;
-  image_input?: string | null;
-  user_location?: Record<string, number> | null; // { lat: number, lng: number }
   
+  //Data Tracking
+  image_required: boolean;
+  requires_skin_cancer_screening?: boolean | null; // Flag for skin cancer screening
+  workflow_path?: WorkflowPathType[] | null;
+    
   // STAGE 1: Textual Symptom Analysis
   userInput_symptoms?: string | null;
   textual_analysis?: TextualSymptomAnalysisResult[] | null;
   average_confidence?: number | null;
   
   // Follow-up stage (if required based on confidence)
+  followup_type?: "standard" | "skin_cancer_screening" | null;
   requires_user_input?: boolean | null;
   followup_questions?: string[] | null;
   followup_response?: Record<string, string> | null;
-  followup_qna?: Record<string, string> | null;
+  followup_qna_overall?: Record<string, string> | null;
   followup_diagnosis?: TextualSymptomAnalysisResult[] | null;
+  skin_cancer_risk_detected?: boolean | null;
   
   // STAGE 2: Skin Lesion Image Analysis (Optional)
   userInput_skin_symptoms?: string | null;
+  image_input?: string | null;
   skin_lesion_analysis?: SkinLesionImageAnalysisResult | null;
   
   // STAGE 3: Overall Analysis

@@ -1,14 +1,9 @@
-// To organize the routing of frontend UI pages according to the current workflow stage (AgentState)
-
 import React from 'react';
 import { AgentState } from 'types/medical';
-
-// Import all page components (we'll create these next)
 import { DiagnosisFormPage } from 'pages/DiagnosisFormPage';
 import { FollowUpQuestionsPage } from 'pages/FollowUpQuestionsPage';
 import { ImageAnalysisPage } from 'pages/ImageAnalysisPage';
 import { AnalysisProgressPage } from 'pages/AnalysisProgressPage';
-import { RecommendationsPage } from 'pages/RecommendationsPage';
 import { FinalReportPage } from 'pages/FinalReportPage';
 import { ErrorPage } from 'pages/ErrorPage';
 
@@ -17,6 +12,7 @@ interface WorkflowRouterProps {
   loading: boolean;
   error: string | null;
   sessionId: string | null;
+  workflowInfo?: any | null;
   onStartDiagnosis: (symptoms: string) => Promise<void>;
   onSubmitFollowUp: (responses: Record<string, string>) => Promise<void>;
   onSubmitImage: (image: File) => Promise<void>;
@@ -29,6 +25,7 @@ export const WorkflowRouter: React.FC<WorkflowRouterProps> = ({
   loading,
   error,
   sessionId,
+  workflowInfo,
   onStartDiagnosis,
   onSubmitFollowUp,
   onSubmitImage,
@@ -55,7 +52,7 @@ export const WorkflowRouter: React.FC<WorkflowRouterProps> = ({
         loading={loading}
         sessionId={sessionId}
         workflowState={null}
-        workflowInfo={null}
+        workflowInfo={workflowInfo}
       />
     );
   }
@@ -77,23 +74,27 @@ export const WorkflowRouter: React.FC<WorkflowRouterProps> = ({
           loading={loading}
           sessionId={sessionId}
           workflowState={workflowState}
-          workflowInfo={null} // Will be passed from useDiagnosis when available
+          workflowInfo={workflowInfo}
         />
       );
 
     // FOLLOW-UP QUESTIONS: Generate or collect responses
-    case 'generating_followup_questions':
+    // case 'generating_followup_questions':
     case 'awaiting_followup_responses':
-      return (
-        <FollowUpQuestionsPage
-          workflowState={workflowState}
-          loading={loading}
-          onSubmitResponses={onSubmitFollowUp}
-          onReset={onReset}
-        />
-      );
+    case 'processing_followup_responses':
+    case 'followup_analysis_complete':
+    return (
+      <FollowUpQuestionsPage
+        workflowState={workflowState}
+        workflowInfo={workflowInfo} 
+        loading={loading}
+        onSubmitResponses={onSubmitFollowUp}
+        onContinue={onContinue}    
+        onReset={onReset}
+      />
+    );
 
-    // IMAGE ANALYSIS: Upload and analyze image
+    // IMAGE ANALYSIS: Upload and analyze image    
     case 'awaiting_image_upload':
     case 'analyzing_image':
     case 'image_analysis_complete':
@@ -103,33 +104,23 @@ export const WorkflowRouter: React.FC<WorkflowRouterProps> = ({
           loading={loading}
           onSubmitImage={onSubmitImage} 
           onReset={onReset}
+          onContinue={onContinue}
         />
       );
 
     // OVERALL ANALYSIS: Processing all data
-    case 'overall_analysis':
-    case 'followup_analysis_complete':
+    case 'performing_overall_analysis':
+    case 'overall_analysis_complete': 
       return (
         <AnalysisProgressPage
           workflowState={workflowState}
           loading={loading}
           onReset={onReset}
-        />
-      );
-
-    // HEALTHCARE RECOMMENDATIONS
-    case 'overall_analysis_complete':
-    case 'generating_healthcare_recommendations':
-      return (
-        <RecommendationsPage
-          workflowState={workflowState}
-          loading={loading}
-          onReset={onReset}
+          onContinue={onContinue}
         />
       );
 
     // FINAL MEDICAL REPORT
-    case 'healthcare_recommendation_complete':
     case 'generating_medical_report':
     case 'workflow_complete':
       return (

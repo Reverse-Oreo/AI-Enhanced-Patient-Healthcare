@@ -1,4 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { PageHeader } from 'components/layout/PageHeader';
+import { ImageUploadForm } from 'components/medical/ImageUploadForm';
+import { ImageAnalysisResults } from 'components/medical/ImageAnalysisResults'; // Add this import
+import { Card } from 'components/common/Card';
+import { Button } from 'components/common/Button';
 import { AgentState } from 'types/medical';
 
 interface ImageAnalysisPageProps {
@@ -6,42 +11,19 @@ interface ImageAnalysisPageProps {
   loading: boolean;
   onSubmitImage: (image: File) => Promise<void>;
   onReset: () => void;
+  onContinue?: () => void; 
 }
 
 export const ImageAnalysisPage: React.FC<ImageAnalysisPageProps> = ({
   workflowState,
   loading,
   onSubmitImage,
-  onReset
+  onReset,
+  onContinue
 }) => {
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedImage(file);
-      // Create preview
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setPreview(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedImage) {
-      alert('Please select an image first');
-      return;
-    }
-    await onSubmitImage(selectedImage);
-  };
-
   const currentStage = workflowState?.current_workflow_stage || '';
   const isAnalyzing = currentStage === 'analyzing_image';
-  const hasResults = workflowState?.skin_lesion_analysis;
+  const hasResults = workflowState?.skin_lesion_analysis && currentStage === 'image_analysis_complete';
 
   if (!workflowState) {
     return (
@@ -53,143 +35,62 @@ export const ImageAnalysisPage: React.FC<ImageAnalysisPageProps> = ({
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-      {/* Page Header */}
-      <div style={{
-        background: 'white',
-        padding: 'var(--spacing-lg)',
-        borderRadius: 'var(--radius-lg)',
-        boxShadow: 'var(--shadow-md)',
-        marginBottom: 'var(--spacing-lg)',
-        textAlign: 'center'
-      }}>
-        <h1 style={{ 
-          color: 'var(--primary)', 
-          marginBottom: 'var(--spacing-sm)',
-          fontSize: '2rem'
-        }}>
-          📸 Medical Image Analysis
-        </h1>
-        <p style={{ color: 'var(--secondary)', margin: 0 }}>
-          Upload a medical image for AI-powered analysis
-        </p>
-        
-        <div style={{
-          background: '#e3f2fd',
-          padding: 'var(--spacing-sm)',
-          borderRadius: 'var(--radius-sm)',
-          marginTop: 'var(--spacing-md)',
-          fontSize: '14px',
-          color: 'var(--primary)'
-        }}>
-          <strong>Current Stage:</strong> {currentStage.replace('_', ' ')}
-        </div>
-      </div>
+      <PageHeader
+        title="📸 Medical Image Analysis"
+        subtitle={hasResults ? 
+          '✅ Image analysis complete - Review results below' :
+          'Upload a medical image for AI-powered analysis'
+        }
+        step={{
+          current: 3,
+          total: 6,
+          description: currentStage.replace('_', ' ')
+        }}
+        variant={hasResults ? 'success' : 'default'}
+      />
 
-      {/* Show Results if Available */}
+      {/* Show Results if Analysis is Complete */}
       {hasResults && (
-        <div style={{
-          background: '#f0f8ff',
-          border: '2px solid var(--primary)',
-          borderRadius: 'var(--radius-lg)',
-          padding: 'var(--spacing-lg)',
-          marginBottom: 'var(--spacing-lg)'
-        }}>
-          <h3 style={{ margin: '0 0 var(--spacing-md) 0' }}>
-            🎯 Image Analysis Results
-          </h3>
-          <p><strong>Diagnosis:</strong> {hasResults.image_diagnosis}</p>
-          {hasResults.confidence_score && (
-            <p><strong>Confidence:</strong> {JSON.stringify(hasResults.confidence_score)}</p>
-          )}
-        </div>
+        <ImageAnalysisResults
+          workflowState={workflowState}
+          onContinue={onContinue}
+          loading={loading}
+        />
       )}
 
-      {/* Image Upload Form */}
-      <div style={{
-        background: 'white',
-        padding: 'var(--spacing-lg)',
-        borderRadius: 'var(--radius-lg)',
-        boxShadow: 'var(--shadow-md)'
-      }}>
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: 'var(--spacing-lg)' }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: 'var(--spacing-sm)',
-              fontWeight: '600',
-              color: 'var(--dark)'
+      {/* Upload Form - Show if no results yet */}
+      {!hasResults && (
+        <Card>
+          {workflowState?.skin_cancer_risk_detected && (
+            <div style={{ 
+              background: '#fff3cd', 
+              border: '1px solid #ffeaa7',
+              padding: 'var(--spacing-md)',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: 'var(--spacing-lg)'
             }}>
-              Select Medical Image
-            </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: 'var(--spacing-sm)',
-                border: '2px dashed #e9ecef',
-                borderRadius: 'var(--radius-md)',
-                cursor: 'pointer'
-              }}
-            />
-          </div>
-
-          {/* Image Preview */}
-          {preview && (
-            <div style={{ marginBottom: 'var(--spacing-lg)', textAlign: 'center' }}>
-              <img
-                src={preview}
-                alt="Selected medical image"
-                style={{
-                  maxWidth: '300px',
-                  maxHeight: '300px',
-                  borderRadius: 'var(--radius-md)',
-                  border: '2px solid #e9ecef'
-                }}
-              />
+              <h4 style={{ margin: '0 0 var(--spacing-sm) 0', color: '#856404' }}>
+                ⚠️ Skin Cancer Risk Detected
+              </h4>
+              <p style={{ margin: 0, fontSize: '14px', color: '#856404' }}>
+                Based on your responses, we recommend uploading a clear image of the skin area for AI analysis. 
+                This will help determine if further medical evaluation is needed.
+              </p>
             </div>
           )}
+          
+          <ImageUploadForm
+            onSubmit={onSubmitImage}
+            loading={loading || isAnalyzing}
+          />
+        </Card>
+      )}
 
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
-            <button
-              type="submit"
-              disabled={loading || !selectedImage}
-              style={{
-                flex: 1,
-                padding: 'var(--spacing-md)',
-                background: (loading || !selectedImage) ? 'var(--secondary)' : 'var(--primary)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                fontSize: '16px',
-                fontWeight: '600',
-                cursor: (loading || !selectedImage) ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {isAnalyzing ? '🔍 Analyzing Image...' : '📸 Analyze Image'}
-            </button>
-            
-            <button
-              type="button"
-              onClick={onReset}
-              disabled={loading}
-              style={{
-                padding: 'var(--spacing-md) var(--spacing-lg)',
-                background: 'var(--secondary)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                fontSize: '16px',
-                cursor: 'pointer'
-              }}
-            >
-              🔄 Start Over
-            </button>
-          </div>
-        </form>
+      {/* Reset Button */}
+      <div style={{ textAlign: 'center', marginTop: 'var(--spacing-md)' }}>
+        <Button onClick={onReset} variant="secondary" size="sm">
+          🔄 Start Over
+        </Button>
       </div>
     </div>
   );

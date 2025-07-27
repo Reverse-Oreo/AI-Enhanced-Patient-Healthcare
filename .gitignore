@@ -1,3 +1,5 @@
+.gitignore
+
 # Unnecessary folders
 next-saas-starter-master/
 4_deployment/
@@ -8,6 +10,7 @@ next-saas-starter-master/
 backend/ai_models/BioMistral-7B.Q8_0.gguf
 backend/ai_models/JSL-MedLlama-3-8B-v2.0-Q8_0.gguf
 backend/ai_models/Llama-3.1-8B-UltraMedical.Q8_0.gguf
+backend/ai_models/Llama-3.1-8B-UltraMedical.Q4_K_M.gguf
 
 # Environment variables
 .env
