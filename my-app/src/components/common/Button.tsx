@@ -2,7 +2,7 @@
 import React from 'react';
 
 interface ButtonProps {
-  onClick?: () => void; // Make optional
+  onClick?: () => void; 
   disabled?: boolean;
   loading?: boolean;
   variant?: 'primary' | 'secondary' | 'success' | 'danger';

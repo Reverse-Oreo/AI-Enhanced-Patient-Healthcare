@@ -5,12 +5,16 @@ import json
 import logging
 from datetime import datetime
 from typing import Dict
+from dotenv import load_dotenv
 
 from api.diagnosis_routes import diagnosis_router
+from api.auth_routes import router as auth_router
 from managers.websocket_manager import ConnectionManager
 from managers.model_manager import model_manager #Global variable to initiallize models here in main.py and carry over to diagnosis_routes.py for model usage
 from nodes import LLMDiagnosisNode, ImageClassificationNode, FollowUpInteractionNode, OverallAnalysisNode, HealthcareRecommendationNode, MedicalReportNode 
 from contextlib import asynccontextmanager
+
+load_dotenv()
 
 # Simple logging setup
 logging.basicConfig(
@@ -65,7 +69,7 @@ app = FastAPI(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for testing
+    allow_origins=["http://localhost:3000"],  # Allow all origins for testing
     allow_credentials=True,
     allow_methods=["*"],  # Allow all methods
     allow_headers=["*"],
@@ -73,34 +77,35 @@ app.add_middleware(
 )
 
 app.include_router(diagnosis_router)
+app.include_router(auth_router)
 
 # Global connection manager
 manager = ConnectionManager()
 
-# WebSocket endpoint (keep in main.py as it's core infrastructure)
-@app.websocket("/ws/{session_id}")
-async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    await manager.connect(websocket, session_id)
-    try:
-        while True:
-            # Keep connection alive and listen for client messages
-            data = await websocket.receive_text()
-            message = json.loads(data)
+# # WebSocket endpoint (keep in main.py as it's core infrastructure)
+# @app.websocket("/ws/{session_id}")
+# async def websocket_endpoint(websocket: WebSocket, session_id: str):
+#     await manager.connect(websocket, session_id)
+#     try:
+#         while True:
+#             # Keep connection alive and listen for client messages
+#             data = await websocket.receive_text()
+#             message = json.loads(data)
             
-            # Handle different message types
-            if message.get("type") == "ping":
-                await manager.send_message(session_id, {
-                    "type": "pong",
-                    "timestamp": datetime.now().isoformat()
-                })
-            elif message.get("type") == "workflow_status_request":
-                await send_workflow_status(session_id)
+#             # Handle different message types
+#             if message.get("type") == "ping":
+#                 await manager.send_message(session_id, {
+#                     "type": "pong",
+#                     "timestamp": datetime.now().isoformat()
+#                 })
+#             elif message.get("type") == "workflow_status_request":
+#                 await send_workflow_status(session_id)
             
-    except WebSocketDisconnect:
-        manager.disconnect(session_id)
-    except Exception as e:
-        print(f"❌ WebSocket error for {session_id}: {e}")
-        manager.disconnect(session_id)
+#     except WebSocketDisconnect:
+#         manager.disconnect(session_id)
+#     except Exception as e:
+#         print(f"❌ WebSocket error for {session_id}: {e}")
+#         manager.disconnect(session_id)
 
 async def send_workflow_status(session_id: str):
     """Send current workflow status to client"""

@@ -1,4 +1,3 @@
-# In medical_report_node.py - Fix the main workflow method
 from adapters.local_model_adapter import LocalModelAdapter
 from typing import Dict, Any, Optional, List
 import json
@@ -14,20 +13,40 @@ from reportlab.lib.styles import getSampleStyleSheet
 from docx import Document
 from io import BytesIO
 
+# Database imports
+from supabase import Client
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 logger = logging.getLogger(__name__)
 
 class MedicalReportNode:
-    def __init__(self, adapter: LocalModelAdapter):
+    def __init__(self, adapter: LocalModelAdapter, supabase_client: Optional[Client] = None):
         self.adapter = adapter
+        
+        # Initialize Supabase client for database operations
+        if supabase_client:
+            self.supabase = supabase_client
+        else:
+            # Create client if not provided
+            url = os.getenv("SUPABASE_URL")
+            key = os.getenv("SUPABASE_API_KEY")
+            if url and key:
+                from supabase import create_client
+                self.supabase = create_client(url, key)
+            else:
+                self.supabase = None
+                logger.warning("Supabase credentials not found - database features disabled")
     
     async def __call__(self, state: dict) -> dict:
-        """Generate medical report content, NOT export file"""
+        """Generate medical report content and optionally save to database"""
         print("📄 MEDICAL REPORT NODE CALLED!")
         
         # Set stage when node starts
         state["current_workflow_stage"] = "generating_medical_report"
         
-        # 🔧 FIX: Generate the actual medical report content
+        # Generate the actual medical report content
         state = await self.generate_medical_report_content(state)
         
         # Mark as complete
@@ -44,6 +63,11 @@ class MedicalReportNode:
             # Create comprehensive report prompt
             report_prompt = self._create_comprehensive_report_prompt(state)
             
+            max_prompt_length = 4000  # Conservative limit to prevent context overflow
+            if len(report_prompt) > max_prompt_length:
+                print(f"⚠️ Prompt too long ({len(report_prompt)} chars), truncating to {max_prompt_length}")
+                report_prompt = report_prompt[:max_prompt_length] + "\n\nPlease generate a medical report based on the above information."
+                
             # Generate report content using LLM
             medical_report = await self.adapter.generate_medical_report(report_prompt)
             
@@ -58,6 +82,163 @@ class MedicalReportNode:
             # Generate fallback report
             state["medical_report"] = self._generate_fallback_report(state)
             return state
+
+    # ================================
+    # DATABASE STORAGE METHODS
+    # ================================
+    
+    async def save_medical_report_to_database(
+        self, 
+        user_id: str, 
+        session_id: str, 
+        agent_state: Dict[str, Any],
+        report_title: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Save a complete medical report to the database"""
+        
+        if not self.supabase:
+            raise Exception("Database not configured - Supabase client not available")
+        
+        try:
+            # Extract data from agent state
+            report_data = {
+                "user_id": user_id,
+                "session_id": session_id,
+                "report_title": report_title or f"Medical Report - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                "patient_symptoms": agent_state.get("userInput_symptoms") or agent_state.get("userInput_skin_symptoms"),
+                "textual_analysis": agent_state.get("textual_analysis"),
+                "followup_data": {
+                    "questions": agent_state.get("followup_questions"),
+                    "responses": agent_state.get("followup_response"),
+                    "qna_overall": agent_state.get("followup_qna_overall"),
+                    "diagnosis": agent_state.get("followup_diagnosis")
+                } if agent_state.get("followup_questions") else None,
+                "image_analysis": agent_state.get("skin_lesion_analysis"),
+                "overall_analysis": agent_state.get("overall_analysis"),
+                "healthcare_recommendations": agent_state.get("healthcare_recommendation"),
+                "medical_report_content": agent_state.get("medical_report"),
+                "workflow_path": agent_state.get("workflow_path"),
+                "workflow_stages_completed": agent_state.get("current_workflow_stage"),
+                "confidence_scores": {
+                    "average_confidence": agent_state.get("average_confidence"),
+                    "final_confidence": agent_state.get("overall_analysis", {}).get("final_confidence") if agent_state.get("overall_analysis") else None
+                }
+            }
+            
+            # Remove None values
+            report_data = {k: v for k, v in report_data.items() if v is not None}
+            
+            # Insert into database
+            result = self.supabase.table("medical_reports").insert(report_data).execute()
+            
+            if result.data:
+                logger.info(f"Medical report saved successfully for user {user_id}, session {session_id}")
+                return result.data[0]
+            else:
+                raise Exception("Failed to save medical report")
+                
+        except Exception as e:
+            logger.error(f"Error saving medical report: {e}")
+            raise e
+    
+    async def get_user_medical_reports(
+        self, 
+        user_id: str, 
+        limit: int = 10, 
+        offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """Get all medical reports for a user"""
+        
+        if not self.supabase:
+            raise Exception("Database not configured")
+        
+        try:
+            result = self.supabase.table("medical_reports")\
+                .select("*")\
+                .eq("user_id", user_id)\
+                .order("created_at", desc=True)\
+                .range(offset, offset + limit - 1)\
+                .execute()
+            
+            return result.data or []
+            
+        except Exception as e:
+            logger.error(f"Error fetching medical reports: {e}")
+            raise e
+    
+    async def get_medical_report_by_id(
+        self, 
+        report_id: str, 
+        user_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Get a specific medical report by ID"""
+        
+        if not self.supabase:
+            raise Exception("Database not configured")
+        
+        try:
+            result = self.supabase.table("medical_reports")\
+                .select("*")\
+                .eq("id", report_id)\
+                .eq("user_id", user_id)\
+                .execute()
+            
+            return result.data[0] if result.data else None
+            
+        except Exception as e:
+            logger.error(f"Error fetching medical report: {e}")
+            raise e
+    
+    async def delete_medical_report(
+        self, 
+        report_id: str, 
+        user_id: str
+    ) -> bool:
+        """Delete a medical report"""
+        
+        if not self.supabase:
+            raise Exception("Database not configured")
+        
+        try:
+            result = self.supabase.table("medical_reports")\
+                .delete()\
+                .eq("id", report_id)\
+                .eq("user_id", user_id)\
+                .execute()
+            
+            return bool(result.data)
+            
+        except Exception as e:
+            logger.error(f"Error deleting medical report: {e}")
+            raise e
+
+    async def update_report_title(
+        self, 
+        report_id: str, 
+        user_id: str, 
+        new_title: str
+    ) -> Dict[str, Any]:
+        """Update medical report title"""
+        
+        if not self.supabase:
+            raise Exception("Database not configured")
+        
+        try:
+            result = self.supabase.table("medical_reports")\
+                .update({"report_title": new_title})\
+                .eq("id", report_id)\
+                .eq("user_id", user_id)\
+                .execute()
+            
+            return result.data[0] if result.data else None
+            
+        except Exception as e:
+            logger.error(f"Error updating medical report title: {e}")
+            raise e
+
+    # ================================
+    # EXISTING METHODS (unchanged)
+    # ================================
     
     def _create_comprehensive_report_prompt(self, state: Dict[str, Any]) -> str:
         """Create a detailed prompt for medical report generation"""
@@ -386,3 +567,33 @@ Session: {session_id} | Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             logger.error(f"❌ Word generation failed: {e}")
             # Fallback to text
             return self._generate_text_export(state, include_details).encode('utf-8')
+
+    def _generate_text_export(self, state: dict, include_details: bool) -> str:
+        """Generate plain text export as fallback"""
+        overall_analysis = state.get('overall_analysis', {})
+        medical_report = state.get('medical_report', '')
+        
+        content = f"""MEDICAL ANALYSIS REPORT
+Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+
+PRIMARY DIAGNOSIS
+Condition: {overall_analysis.get('final_diagnosis', 'N/A')}
+Confidence: {(overall_analysis.get('final_confidence', 0) * 100):.1f}%
+Severity: {overall_analysis.get('final_severity', 'N/A').title()}
+Specialist: {overall_analysis.get('specialist_recommendation', 'General Practitioner').replace('_', ' ').title()}
+
+"""
+        
+        if overall_analysis.get('user_explanation'):
+            content += f"WHAT IS IT?\n{overall_analysis.get('user_explanation')}\n\n"
+        
+        if include_details and overall_analysis.get('clinical_reasoning'):
+            content += f"CLINICAL REASONING\n{overall_analysis.get('clinical_reasoning')}\n\n"
+        
+        if include_details and medical_report:
+            content += f"DETAILED MEDICAL REPORT\n{medical_report}\n\n"
+        
+        content += """MEDICAL DISCLAIMER
+This AI-generated report is for informational purposes only and should not replace professional medical advice, diagnosis, or treatment. Always consult with qualified healthcare professionals for medical concerns."""
+        
+        return content

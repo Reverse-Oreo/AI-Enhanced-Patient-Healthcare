@@ -1,85 +1,80 @@
-// components/common/Input.tsx
 import React from 'react';
+import styled from 'styled-components';
+
+type InputType = "textarea" | "text" | "file" | "email" | "password";
 
 interface InputProps {
+  type?: InputType;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
-  type?: 'text' | 'textarea' | 'file';
-  rows?: number;
   maxLength?: number;
-  accept?: string; // for file input
   style?: React.CSSProperties;
+  id?: string;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
 }
 
+// A basic styled wrapper
+const StyledInput = styled.input`
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 1rem;
+`;
+
+const StyledTextarea = styled.textarea`
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 1rem;
+  resize: vertical;
+`;
+
 export const Input: React.FC<InputProps> = ({
+  type = "text",
   value,
   onChange,
   placeholder,
   disabled = false,
-  type = 'text',
-  rows = 5,
   maxLength,
-  accept,
-  style = {}
+  style,
+  id,
+  onKeyDown
 }) => {
-  const baseStyles = {
-    width: '100%',
-    padding: 'var(--spacing-md)',
-    border: '2px solid #e9ecef',
-    borderRadius: 'var(--radius-md)',
-    fontSize: '16px',
-    fontFamily: 'inherit',
-    lineHeight: '1.5',
-    ...style
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    onChange(e.target.value);
   };
 
-  if (type === 'textarea') {
+  if (type === "textarea") {
     return (
-      <textarea
+      <StyledTextarea
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={handleChange}
         placeholder={placeholder}
         disabled={disabled}
         maxLength={maxLength}
-        rows={rows}
-        style={{
-          ...baseStyles,
-          resize: 'vertical',
-          minHeight: '150px'
-        }}
+        style={style}
+        id={id}
+        onKeyDown={onKeyDown}
       />
     );
   }
 
-  if (type === 'file') {
-    return (
-      <input
-        type="file"
-        accept={accept}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) onChange(file.name); // or handle file differently
-        }}
-        disabled={disabled}
-        style={{
-          ...baseStyles,
-          cursor: 'pointer'
-        }}
-      />
-    );
-  }
-
+  // For all other input types (text, email, password, file)
   return (
-    <input
-      type="text"
+    <StyledInput
+      type={type}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={handleChange}
       placeholder={placeholder}
       disabled={disabled}
       maxLength={maxLength}
-      style={baseStyles}
+      style={style}
+      id={id}
+      onKeyDown={onKeyDown}
     />
   );
 };

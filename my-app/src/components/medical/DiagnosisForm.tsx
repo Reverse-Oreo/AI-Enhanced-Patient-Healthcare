@@ -34,14 +34,6 @@ export const DiagnosisForm: React.FC<DiagnosisFormProps> = ({
   return (
     <form onSubmit={handleSubmit}>
       <div style={{ marginBottom: 'var(--spacing-lg)' }}>
-        <label style={{ 
-          display: 'block', 
-          marginBottom: 'var(--spacing-sm)',
-          fontWeight: '600',
-          color: 'var(--dark)'
-        }}>
-          Describe Your Symptoms
-        </label>
         <Input
           type="textarea"
           value={symptoms}

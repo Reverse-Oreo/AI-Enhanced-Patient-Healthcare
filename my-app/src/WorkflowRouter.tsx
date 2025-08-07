@@ -1,11 +1,11 @@
 import React from 'react';
 import { AgentState } from 'types/medical';
-import { DiagnosisFormPage } from 'pages/DiagnosisFormPage';
-import { FollowUpQuestionsPage } from 'pages/FollowUpQuestionsPage';
-import { ImageAnalysisPage } from 'pages/ImageAnalysisPage';
-import { AnalysisProgressPage } from 'pages/AnalysisProgressPage';
-import { FinalReportPage } from 'pages/FinalReportPage';
-import { ErrorPage } from 'pages/ErrorPage';
+import { DiagnosisFormPage } from 'pages/diagnosis/DiagnosisFormPage';
+import { FollowUpQuestionsPage } from 'pages/diagnosis/FollowUpQuestionsPage';
+import { ImageAnalysisPage } from 'pages/diagnosis/ImageAnalysisPage';
+import { AnalysisProgressPage } from 'pages/diagnosis/AnalysisProgressPage';
+import { FinalReportPage } from 'pages/diagnosis/FinalReportPage';
+import { ErrorPage } from 'pages/diagnosis/ErrorPage';
 
 interface WorkflowRouterProps {
   workflowState: AgentState | null;
