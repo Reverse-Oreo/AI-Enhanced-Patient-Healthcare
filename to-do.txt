@@ -1,3 +1,11 @@
+15/8, Friday:
+- Improve the llm inference performance as much as possible
+- overall analysis llm context (reasoning, definition)
+- finalize medical report (remove noise, include only relevant information everything from overall analysis, add follow-up guidance/advice(maybe allow llm to generate this during this stage, reuse all value from previous stages))
+- give dad test the system
+- Gantt chart
+- logsheet 
+
 optimize the codes, dont overcomplicate it with fallback, unnecessary if else statements, loggings...etc
 
 THINGS TO ASK Miss

@@ -500,6 +500,7 @@ async def export_medical_report(
         session_state = session_states.get(session_id)
         if not session_state:
             raise HTTPException(status_code=404, detail="Session not found")
+            session_state = data
         
         # Use medical report node for export generation
         if not medical_report_node:

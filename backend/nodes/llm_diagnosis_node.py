@@ -1,7 +1,6 @@
 from typing import TypedDict, Tuple
 import re
-# from models.ai_schema import SymptomAnalysis  # We still use this to define and validate the output schema
-from adapters.local_model_adapter import LocalModelAdapter
+from adapters.local_model_adapter4 import LocalModelAdapter
 from schemas.medical_schemas import TextualSymptomAnalysisResult
 
 def parse_diagnosis_details(raw_response: str) -> list[TextualSymptomAnalysisResult]:
@@ -63,9 +62,7 @@ class LLMDiagnosisNode:
         skin_cancer_keywords = [
             'mole', 'lesion', 'growth', 'bump', 'spot', 'rash', 'patch', 'scab',
             'discoloration', 'freckle', 'birthmark', 'wart', 'cyst', 'lump',
-            'melanoma', 'cancer', 'tumor', 'nevus', 'seborrheic', 'keratosis',
-            'changing', 'bleeding', 'itching', 'crusting', 'ulceration',
-            'asymmetric', 'irregular', 'diameter', 'evolving', 'abcde'
+            'melanoma', 'cancer', 'tumor', 'nevus', 'seborrheic', 'keratosis'
         ]
         
         general_skin_keywords = [

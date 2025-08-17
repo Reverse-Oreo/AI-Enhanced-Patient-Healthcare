@@ -7,6 +7,8 @@ import logging
 import os
 import psutil
 import torch
+import math
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +55,7 @@ class LocalModelAdapter(ModelInterface):
                 "verbose": False,                   # Reduce logging noise
                 "n_ctx": 1024,                       # Optimal context for speed (11.41s vs 12.02s)
                 "seed": 42,                         # Reproducible results
-                "logits_all": False,               # Memory optimization
+                "logits_all": True,               # Memory optimization
                 "embedding": False,                 # We don't need embeddings
                 "n_threads": 4,                     # Optimal CPU threads (best performance: 11.24s)
                 "n_threads_batch": 4,               # Optimal batch processing threads
@@ -144,6 +146,80 @@ class LocalModelAdapter(ModelInterface):
         except Exception as e:
             logger.error(f"Llama-cpp-python text generation error: {e}")
             return ""
+        
+    def _generate_with_confidences_sync(self, prompt: str, max_tokens: int = 512, temperature: float = 0.1) -> str:
+        """Generate diagnoses only, then append calculated confidences."""
+        if not self.model:
+            raise ValueError("Model not loaded")
+
+        # Modify the prompt to exclude confidence in generation
+        prompt_no_conf = re.sub(r"-\s*confidence.*?<0.0-1.0>", "", prompt, flags=re.IGNORECASE)
+        formatted_prompt = self._format_prompt(prompt_no_conf)
+
+        response = self.model(
+            formatted_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=0.7,
+            top_k=15,
+            repeat_penalty=1.02,
+            stop=["<|eot_id|>", "<|end_of_text|>"],
+            echo=False,
+            logprobs=True,
+        )
+
+        if not response or "choices" not in response:
+            logger.warning("Empty response from llama-cpp-python generation")
+            return ""
+
+        raw_text = response["choices"][0]["text"].strip()
+
+        # Extract token probabilities
+        token_logprobs = response["choices"][0].get("logprobs", [])
+        # Convert to probabilities safely
+        token_probs = []
+        for lp in token_logprobs:
+            if lp is not None and isinstance(lp, (int, float)):
+                try:
+                    token_probs.append(math.exp(lp))
+                except (ValueError, OverflowError):
+                    token_probs.append(0.01)  # Fallback probability
+
+        # Find diagnosis lines
+        diag_pattern = re.compile(r"^\s*-\s*diagnosis\s*:\s*(.+)$", re.IGNORECASE)
+        lines = raw_text.splitlines()
+        diagnosis_indices = [i for i, line in enumerate(lines) if diag_pattern.match(line)]
+
+        # If we have token probabilities and diagnoses, calculate confidences
+        if diagnosis_indices and token_probs:
+            chunk_size = max(1, len(token_probs) // len(diagnosis_indices))
+            
+            # Process in reverse order to avoid index shifting issues
+            for idx in reversed(range(len(diagnosis_indices))):
+                diag_idx = diagnosis_indices[idx]
+                start = idx * chunk_size
+                end = (idx + 1) * chunk_size if idx < len(diagnosis_indices) - 1 else len(token_probs)
+                diag_probs = token_probs[start:end]
+                
+                if diag_probs:
+                    # Calculate geometric mean of probabilities
+                    try:
+                        geo_mean = math.exp(sum(math.log(max(p, 1e-9)) for p in diag_probs) / len(diag_probs))
+                    except (ValueError, ZeroDivisionError):
+                        geo_mean = 0.5  # Fallback confidence
+                    
+                    # Insert confidence line after diagnosis line
+                    lines.insert(diag_idx + 1, f"- confidence: {geo_mean:.3f}")
+        else:
+            # Fallback: add default confidences if no token probabilities available
+            logger.warning("No token probabilities available, using default confidences")
+            for idx in reversed(range(len(diagnosis_indices))):
+                diag_idx = diagnosis_indices[idx]
+                # Use a decreasing confidence for each diagnosis (0.8, 0.7, 0.6, etc.)
+                default_conf = max(0.3, 0.9 - (idx * 0.1))
+                lines.insert(diag_idx + 1, f"- confidence: {default_conf:.3f}")
+
+        return "\n".join(lines)
 
     def _format_prompt(self, user_input: str) -> str:
         """Consistent prompt format"""
@@ -164,12 +240,23 @@ class LocalModelAdapter(ModelInterface):
     async def generate_diagnosis(self, symptoms: str) -> str: 
         """High-accuracy diagnosis generation"""
         prompt = f"""Symptoms: {symptoms}
-List 5 most possible diagnoses in this exact format:
+
+For each of the 5 most possible diagnoses:
+1. Identify 3–5 clinical features from the symptoms that support this diagnosis.
+2. Assign each feature a match score between 0.0–1.0:
+   - 1.0 means the feature strongly matches the diagnosis.
+   - 0.5 means the feature partially matches.
+   - 0.0 means no match.
+3. Calculate the diagnosis confidence as:
+   Confidence = (Sum of feature scores) / (Number of features)
+
+IMPORTANT:
+- Output only in this exact format:
 - diagnosis: <name>
-- confidence: <0.0-1.0>
+- confidence: <calculated_value to 2 decimal places>
 
 Repeat for each diagnosis."""
-        return await self.run_sync(self._generate_text_sync, prompt, 85, 0.1)  
+        return await self.run_sync(self._generate_with_confidences_sync, prompt, 65, 0.1)
 
 #     async def generate_followup_questions(self, diagnosis_context: str, average_confidence: float) -> str:
 #         """Generate follow-up questions based on diagnosis context and confidence"""
@@ -312,6 +399,8 @@ Repeat for each diagnosis."""
         prompt = (
             "Generate a structured, professional medical report:\n"
             f"{report_prompt}\n"
+            "Include sections: Summary, Observations, Recommendations.\n"
+            "Use clinical tone and terminology."
         )
         return await self.run_sync(self._generate_text_sync, prompt, 1024, 0.3)
     

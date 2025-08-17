@@ -1,4 +1,4 @@
-from adapters.local_model_adapter import LocalModelAdapter
+from adapters.local_model_adapter4 import LocalModelAdapter
 from typing import Dict, Any, List, Optional
 import googlemaps
 import asyncio

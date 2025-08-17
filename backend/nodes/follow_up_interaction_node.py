@@ -1,5 +1,5 @@
 from ray import state
-from adapters.local_model_adapter import LocalModelAdapter
+from adapters.local_model_adapter4 import LocalModelAdapter
 from typing import Dict, Any, List
 import re
 
@@ -67,7 +67,7 @@ class FollowUpInteractionNode:
         return [
             "How long have you been experiencing these symptoms? (hours, days, weeks, months)",
             "Have your symptoms gotten worse, better, or stayed the same since they started?",
-            "On a scale of 1-10, how would you rate the severity of your symptoms?",
+            "On a scale of 0–10, what is your current pain level? (0 = no pain, 10 = worst pain imaginable)",
             "Do you have any other symptoms that you haven't mentioned yet?",
             "Are you currently taking any medications, supplements, or have any known allergies?"
         ]
@@ -107,7 +107,9 @@ class FollowUpInteractionNode:
         state["followup_qna_overall"] = enhanced_symptoms  # Store user input and qna pairs for overall analysis
 
         if followup_type == "skin_cancer_screening":
-            needs_image_analysis = self.analyze_skin_cancer_risk(responses)
+            needs_image_analysis, risk_metrics = self.analyze_skin_cancer_risk(responses)
+            
+            state["skin_cancer_risk_metrics"] = risk_metrics # store context information for overall analysis later 
             
             if needs_image_analysis: ## skin cancer screening only
                 print("🔍 SKIN CANCER RISK DETECTED - proceeding to image analysis")
@@ -170,43 +172,104 @@ class FollowUpInteractionNode:
             print(f"✅ Standard follow-up diagnosis complete - found {len(diagnosis_results)} diagnoses")
             return state
     
+        #     """Risk analysis based on weighted Yes/Neutral/No responses.
+        # Returns True if risk_score >= threshold."""
+        # weights = {
+        #     0: 3,  # Asymmetry
+        #     1: 3,  # Border irregularity
+        #     2: 2,  # Color variation
+        #     3: 2,  # Diameter >6mm
+        #     4: 3,  # Evolution
+        #     5: 1,  # Symptoms (bleeding/itching/pain)
+        #     6: 1   # History/exposure
+        # }
+    
     def analyze_skin_cancer_risk(self, responses: dict[str, str]) -> bool:
-        threshold = 5
-        
-        """Risk analysis based on weighted Yes/Neutral/No responses.
-        Returns True if risk_score >= threshold."""
+        """
+        Enhanced ABCDE + adjunct risk evaluation.
+        Returns True if image analysis recommended.
+        Stores metrics in state externally if caller copies self.last_skin_risk.
+        """
+
+        # Semantic mapping based on question order you already control
+        # (Still safer than hard weights dict with old threshold)
+        # Index meaning (must match _get_skin_cancer_screening_questions order):
+        # 0 A, 1 B, 2 C, 3 D, 4 E, 5 Symptoms, 6 History
         weights = {
-            0: 3,  # Asymmetry
-            1: 3,  # Border irregularity
-            2: 2,  # Color variation
-            3: 2,  # Diameter >6mm
-            4: 1,  # Evolution
-            5: 1,  # Symptoms (bleeding/itching/pain)
-            6: 1   # History/exposure
+            0: ("A", 2, False),
+            1: ("B", 2, False),
+            2: ("C", 2, False),
+            3: ("D", 1, False),
+            4: ("E", 2, False),
+            5: ("SYMPTOMS", 1, True),
+            6: ("HISTORY", 1, True),
         }
 
-        risk_score = 0
-        total_questions = len(weights)
+        def resp_value(r: str) -> float:
+            r = r.strip().lower()
+            if r == "yes":
+                return 1.0
+            if r == "neutral":
+                return 0.5
+            return 0.0  # no / unknown
 
-        for idx, (question, response) in enumerate(responses.items()):
-            resp = response.lower().strip()
-            w = weights.get(idx, 0)
+        core_score = 0.0
+        adjunct_score = 0.0
+        detail = []
 
-            if resp == 'yes':
-                risk_score += w
-            elif resp == 'neutral':
-                # half weight (rounded down, minimum 1)
-                risk_score += max(1, w // 2)
-            # 'no' adds 0
+        for idx, (question, answer) in enumerate(responses.items()):
+            label, w, is_adjunct = weights.get(idx, ("OTHER", 0, True))
+            val = resp_value(answer)
+            contrib = w * val
+            if is_adjunct:
+                adjunct_score += contrib
+            else:
+                core_score += contrib
+            detail.append({
+                "index": idx,
+                "question": question,
+                "answer": answer,
+                "category": label,
+                "weight": w,
+                "value": val,
+                "contribution": contrib,
+                "adjunct": is_adjunct
+            })
 
-        needs_image = risk_score >= threshold
+        any_adjunct_yes = any(d["adjunct"] and d["value"] == 1.0 and d["weight"] > 0 for d in detail)
 
-        print(f"🔍 Skin cancer risk analysis:")
-        print(f"   Risk score: {risk_score} (threshold: {threshold})")
-        print(f"   Needs image analysis: {needs_image}")
-        print(f"   Responses: {responses}")
+        # Risk stratification
+        # Core max = 2+2+2+1+2 = 9; adjunct max = 2 (symptoms + history)
+        if core_score >= 6 or (core_score >= 5 and any_adjunct_yes):
+            risk_level = "high"
+        elif (4 <= core_score <= 5) or (core_score == 3 and any_adjunct_yes):
+            risk_level = "moderate"
+        else:
+            risk_level = "low"
 
-        return needs_image
+        image_recommended = (
+            risk_level == "high" or
+            (risk_level == "moderate" and any_adjunct_yes)
+        )
+
+        print("🔍 Skin cancer risk analysis (enhanced)")
+        print(f"   Core score: {core_score:.2f} / 9.00")
+        print(f"   Adjunct score: {adjunct_score:.2f} / 2.00")
+        print(f"   Risk level: {risk_level}")
+        print(f"   Any adjunct YES: {any_adjunct_yes}")
+        print(f"   Image recommended: {image_recommended}")
+        print(f"   Detail: {[ (d['category'], d['answer'], d['contribution']) for d in detail ]}")
+
+        risk_metrics = {
+            "core_score": core_score,
+            "adjunct_score": adjunct_score,
+            "risk_level": risk_level,
+            "image_recommended": image_recommended,
+            "any_adjunct_yes": any_adjunct_yes,
+            "details": detail
+        }
+
+        return image_recommended, risk_metrics
                     
     
     def _combine_symptoms_and_responses(self, original_symptoms: str, responses: dict[str, str]) -> str:

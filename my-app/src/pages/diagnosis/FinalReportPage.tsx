@@ -424,16 +424,8 @@ const handleAccountStorage = async () => {
           </Button>
         </div>
 
-        <p style={{ fontSize: '14px', color: 'var(--secondary)', margin: '0 0 var(--spacing-md) 0' }}>
-          Store this report in your personal account for future AI consultations and health tracking.
-        </p>
-
         {showStorageOptions && (
           <Card variant="primary" style={{ marginTop: 'var(--spacing-md)' }}>
-            <h5 style={{ margin: '0 0 var(--spacing-md) 0', color: 'var(--dark)' }}>
-              🔐 Personal Health Data Storage
-            </h5>
-            
             <div style={{ marginBottom: 'var(--spacing-md)', fontSize: '14px', lineHeight: '1.6' }}>
               <p style={{ margin: '0 0 var(--spacing-sm) 0' }}>
                 <strong>Benefits of saving your report:</strong>
@@ -479,20 +471,6 @@ const handleAccountStorage = async () => {
               >
                 Not Now
               </Button>
-            </div>
-
-            <div style={{ 
-              fontSize: '12px', 
-              color: 'var(--secondary)', 
-              marginTop: 'var(--spacing-sm)',
-              fontStyle: 'italic',
-              background: '#fff3cd',
-              padding: '8px',
-              borderRadius: '4px',
-              border: '1px solid #ffeaa7'
-            }}>
-              🚧 <strong>Feature Coming Soon:</strong> User accounts and secure medical data storage 
-              will be available in the next version of this application.
             </div>
           </Card>
         )}

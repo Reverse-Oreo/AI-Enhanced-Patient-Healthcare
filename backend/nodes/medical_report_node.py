@@ -1,4 +1,4 @@
-from adapters.local_model_adapter import LocalModelAdapter
+from adapters.local_model_adapter4 import LocalModelAdapter
 from typing import Dict, Any, Optional, List
 import json
 from datetime import datetime
@@ -55,28 +55,23 @@ class MedicalReportNode:
         return state
     
     async def generate_medical_report_content(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate comprehensive medical report content using LLM"""
+        """Generate optimized medical report using templates + minimal LLM generation"""
         
         try:
-            print("🔄 Generating medical report content...")
+            print("🔄 Generating template-based medical report...")
             
-            # Create comprehensive report prompt
-            report_prompt = self._create_comprehensive_report_prompt(state)
+            # Generate only the dynamic content via LLM
+            dynamic_content = await self._generate_followup_guidance(state)
             
-            max_prompt_length = 4000  # Conservative limit to prevent context overflow
-            if len(report_prompt) > max_prompt_length:
-                print(f"⚠️ Prompt too long ({len(report_prompt)} chars), truncating to {max_prompt_length}")
-                report_prompt = report_prompt[:max_prompt_length] + "\n\nPlease generate a medical report based on the above information."
-                
-            # Generate report content using LLM
-            medical_report = await self.adapter.generate_medical_report(report_prompt)
+            # Combine with template-based sections
+            final_report = self._create_template_based_report(state, dynamic_content)
             
             # Store in state
-            state["medical_report"] = medical_report
+            state["medical_report"] = final_report
             
-            print("✅ Medical report content generated successfully")
+            print("✅ Template-based medical report generated successfully")
             return state
-            
+                
         except Exception as e:
             print(f"❌ Medical report generation failed: {e}")
             # Generate fallback report
@@ -240,114 +235,172 @@ class MedicalReportNode:
     # EXISTING METHODS (unchanged)
     # ================================
     
-    def _create_comprehensive_report_prompt(self, state: Dict[str, Any]) -> str:
-        """Create a detailed prompt for medical report generation"""
+    async def _generate_followup_guidance(self, state: Dict[str, Any]) -> Dict[str, str]:
+        """Generate only the content that needs LLM creativity"""
         
         overall_analysis = state.get("overall_analysis", {})
+        diagnosis = overall_analysis.get('final_diagnosis', 'Unknown')
+        severity = overall_analysis.get('final_severity', 'moderate')
+        confidence = overall_analysis.get('final_confidence', 0.5)
+        specialist = overall_analysis.get('specialist_recommendation', 'general_practitioner')
+        
+        # Short, focused prompts for specific content
+        followup_prompt = f"""Generate follow-up guidance for:
+    Diagnosis: {diagnosis}
+    Severity: {severity}
+    Confidence: {confidence:.2f}
+    Specialist: {specialist}
+
+    Depending on the severity, provide in this EXACT format:
+    IMMEDIATE (24-48h): [specific actions]
+    SHORT-TERM (1-2 weeks): [monitoring/appointments]
+    WATCH FOR: [warning signs]
+    LIFESTYLE: [relevant changes]
+
+    Keep each section under 30 words."""
+    
+        # Generate both sections concurrently for speed
+        followup_guidance = await self.adapter.generate_text_guidance(followup_prompt, 200, 0.2)
+        
+        return {
+            "followup_guidance": followup_guidance,
+        }
+    
+    def _create_template_based_report(self, state: Dict[str, Any], dynamic_content: Dict[str, str]) -> str:
+        """Create report using templates filled with state data + dynamic content"""
+        
+        overall_analysis = state.get("overall_analysis", {})
+        session_id = state.get("session_id", "Unknown")
         workflow_path = state.get("workflow_path", [])
         
-        # Get original inputs
-        original_symptoms = state.get("userInput_symptoms", "") or state.get("userInput_skin_symptoms", "")
-        followup_data = state.get("followup_response", {})
-        image_analysis = state.get("skin_lesion_analysis", {})
+        # Extract data for templates
+        diagnosis = overall_analysis.get('final_diagnosis', 'Not determined')
+        confidence = overall_analysis.get('final_confidence', 0.0)
+        severity = overall_analysis.get('final_severity', 'moderate')
+        specialist = overall_analysis.get('specialist_recommendation', 'general_practitioner')
+        user_explanation = overall_analysis.get('user_explanation', 'Analysis completed')
+        clinical_reasoning = overall_analysis.get('clinical_reasoning', 'Systematic analysis performed')
         
-        # Determine analysis type
-        has_followup = bool(followup_data)
-        has_image = bool(image_analysis.get("image_diagnosis"))
+        # Analysis type from workflow
+        analysis_type = self._get_analysis_type_display(workflow_path, state)
+        evidence_summary = self._create_evidence_summary(state)
         
-        prompt = f"""
-Generate a comprehensive medical analysis report based on the following information:
-
-=== PATIENT CASE SUMMARY ===
-Session ID: {state.get('session_id', 'Unknown')}
-Analysis Date: {datetime.now().strftime('%B %d, %Y')}
-Analysis Type: {"Comprehensive" if has_followup and has_image else "Enhanced" if has_followup or has_image else "Standard"}
-
-=== PRIMARY FINDINGS ===
-Final Diagnosis: {overall_analysis.get('final_diagnosis', 'Not available')}
-Diagnostic Confidence: {(overall_analysis.get('final_confidence', 0) * 100):.1f}%
-Severity Assessment: {overall_analysis.get('final_severity', 'unknown').title()}
-Recommended Specialist: {overall_analysis.get('specialist_recommendation', 'general_practitioner').replace('_', ' ').title()}
-
-=== PATIENT PRESENTATION ===
-Primary Symptoms: {original_symptoms}
-"""
-
-        # Add follow-up information if available
-        if has_followup:
-            prompt += f"""
-=== ENHANCED SYMPTOM ANALYSIS ===
-Follow-up Information Provided: Yes
-Additional Clinical Details: Enhanced through structured questioning
-"""
-            # Add a few key follow-up responses
-            if followup_data:
-                prompt += "Key Follow-up Responses:\n"
-                for i, (question, response) in enumerate(list(followup_data.items())[:3]):
-                    prompt += f"  • Q: {question}\n    A: {response}\n"
-
-        # Add image analysis if available
-        if has_image:
-            prompt += f"""
-=== VISUAL ASSESSMENT ===
-Image Analysis Performed: Yes
-Image-Based Findings: {image_analysis.get('image_diagnosis', 'No specific findings')}
-Visual Assessment Method: AI-powered dermatological analysis
-"""
-
-        prompt += f"""
-=== CLINICAL ASSESSMENT ===
-Patient Explanation: {overall_analysis.get('user_explanation', 'Not available')}
-Clinical Reasoning: {overall_analysis.get('clinical_reasoning', 'Not available')}
-
-=== WORKFLOW ANALYSIS ===
-Analysis Pathway: {' → '.join(workflow_path) if workflow_path else 'Standard workflow'}
-Data Sources Used: {"Symptoms, Follow-up Questions, Medical Images" if has_followup and has_image else "Symptoms, Follow-up Questions" if has_followup else "Symptoms, Medical Images" if has_image else "Symptoms"}
-
-Please generate a comprehensive medical report with the following sections:
-
-1. EXECUTIVE SUMMARY
-   - Brief case overview and key findings
-   - Primary diagnosis and confidence assessment
-   - Urgency level and recommended actions
-
-2. CLINICAL PRESENTATION
-   - Detailed symptom analysis
-   - Patient-reported concerns and history
-   - Clinical significance of findings
-
-3. DIAGNOSTIC ASSESSMENT
-   - Diagnostic reasoning and methodology
-   - Confidence analysis and supporting evidence
-   - Alternative diagnoses considered (if applicable)
-   - Severity assessment and clinical implications
-
-4. ANALYSIS METHODOLOGY
-   - Workflow stages completed
-   - Types of analysis performed (textual, image, enhanced questioning)
-   - Data quality and completeness assessment
-
-5. CLINICAL RECOMMENDATIONS
-   - Immediate care recommendations
-   - Specialist referral guidance
-   - Follow-up care instructions
-   - Monitoring recommendations
-
-6. PATIENT GUIDANCE
-   - Next steps and timeline
-   - Warning signs to monitor
-   - When to seek immediate medical attention
-   - General health maintenance advice
-
-7. MEDICAL DISCLAIMERS
-   - AI analysis limitations and scope
-   - Professional consultation requirements
-   - Emergency care guidance
-
-Format the report professionally with clear medical language appropriate for both healthcare providers and informed patients. Ensure all recommendations are evidence-based and clinically sound.
-"""
+        # Get alternative diagnoses
+        alternative_diagnoses = self._get_alternative_diagnoses(state)
         
-        return prompt
+        # Urgency level based on severity
+        urgency_info = self._get_urgency_template(severity)
+        
+        # Build complete report
+        report = f"""
+    MEDICAL ANALYSIS REPORT
+    ═══════════════════════════════════════════════════════════════════
+    Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+    Session ID: {session_id}
+    Analysis Method: {analysis_type}
+
+═══════════════════════════════════════════════════════════════════
+        EXECUTIVE SUMMARY
+═══════════════════════════════════════════════════════════════════
+    Primary Diagnosis: {diagnosis}
+    Diagnostic Confidence: {(confidence * 100):.1f}%
+    Severity Level: {severity.title()}
+    Recommended Specialist: {specialist.replace('_', ' ').title()}
+
+    {urgency_info['summary']}
+
+═══════════════════════════════════════════════════════════════════
+        AI CLINICAL ASSESSMENT
+═══════════════════════════════════════════════════════════════════
+    CONDITION OVERVIEW:
+    {user_explanation}
+
+    CLINICAL REASONING:
+    {clinical_reasoning}
+
+    DIAGNOSTIC CONFIDENCE:
+    Based on the available evidence, this diagnosis has a confidence level of {(confidence * 100):.1f}%. 
+    {self._get_confidence_interpretation(confidence)}
+
+    ALTERNATIVE DIAGNOSES:
+    {alternative_diagnoses}
+
+    DIAGNOSTIC CONFIDENCE:
+    Based on the available evidence, this diagnosis has a confidence level of {(confidence * 100):.1f}%. 
+    {self._get_confidence_interpretation(confidence)}
+
+    EVIDENCE REVIEWED:
+    {evidence_summary}
+
+═══════════════════════════════════════════════════════════════════
+        FOLLOW-UP GUIDANCE
+═══════════════════════════════════════════════════════════════════
+    {dynamic_content.get('followup_guidance', 'Follow standard care protocols for this condition.')}
+
+═══════════════════════════════════════════════════════════════════
+        SPECIALIST REFERRAL
+═══════════════════════════════════════════════════════════════════
+    RECOMMENDED SPECIALIST: {specialist.replace('_', ' ').title()}
+
+    REFERRAL TIMING: {self._get_referral_timing(severity)}
+
+    PREPARATION FOR APPOINTMENT:
+    • Bring this report and any previous medical records
+    • List all current medications and supplements
+    • Prepare a detailed symptom timeline
+    • Note any family history of similar conditions
+    • Bring insurance information and identification
+
+═══════════════════════════════════════════════════════════════════
+        SAFETY WARNINGS
+═══════════════════════════════════════════════════════════════════
+    {urgency_info['warnings']}
+
+    GENERAL EMERGENCY SIGNS - Seek immediate medical attention for:
+    • Severe difficulty breathing or shortness of breath
+    • Chest pain or pressure lasting more than a few minutes
+    • Severe bleeding that won't stop
+    • Loss of consciousness or severe confusion
+    • Signs of severe allergic reaction (swelling, difficulty swallowing)
+    • Sudden severe headache with vision changes
+    • High fever (over 103°F/39.4°C) with severe symptoms
+
+═══════════════════════════════════════════════════════════════════
+        MEDICAL DISCLAIMERS
+═══════════════════════════════════════════════════════════════════
+    AI ANALYSIS LIMITATIONS:
+    This report is generated by an AI medical analysis system and is intended for 
+    informational and educational purposes only. It does not constitute professional 
+    medical advice, diagnosis, or treatment recommendations.
+
+    PROFESSIONAL CONSULTATION REQUIRED:
+    • This analysis cannot replace professional medical examination
+    • Physical examination, laboratory tests, and imaging may be necessary
+    • A qualified healthcare provider should review all symptoms
+    • Treatment decisions should only be made by licensed medical professionals
+
+    ACCURACY CONSIDERATIONS:
+    • Analysis accuracy depends on completeness of provided information
+    • Some conditions require specialized testing for proper diagnosis
+    • AI systems may not detect all possible conditions or complications
+    • Second medical opinions are recommended for complex cases
+
+    EMERGENCY DISCLAIMER:
+    If you are experiencing a medical emergency, do not rely on this report. 
+    Call emergency services (911) or go to the nearest emergency room immediately.
+
+    DATA PRIVACY:
+    This analysis is confidential and should be shared only with your healthcare 
+    providers. Maintain privacy of medical information according to applicable laws.
+
+    ═══════════════════════════════════════════════════════════════════
+    Report ID: {session_id} | AI Medical Analysis System v2.0
+    Total Analysis Time: {self._get_analysis_duration(state)}
+    Generated by Llama 3.1 8B UltraMedical (8-bit Quantization GGUF)
+    ═══════════════════════════════════════════════════════════════════
+    """
+        
+        return report
     
     def _generate_fallback_report(self, state: Dict[str, Any]) -> str:
         """Generate a fallback report if LLM generation fails"""
@@ -361,7 +414,7 @@ Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
 Session ID: {session_id}
 
 ═══════════════════════════════════════════════════════════════════
-                    EXECUTIVE SUMMARY
+            EXECUTIVE SUMMARY
 ═══════════════════════════════════════════════════════════════════
 
 Primary Diagnosis: {overall_analysis.get('final_diagnosis', 'Analysis incomplete')}
@@ -369,7 +422,7 @@ Primary Diagnosis: {overall_analysis.get('final_diagnosis', 'Analysis incomplete
 Based on the comprehensive analysis of provided symptoms, our AI medical assistant has completed the diagnostic assessment with the findings detailed below.
 
 ═══════════════════════════════════════════════════════════════════
-                    CLINICAL FINDINGS
+            CLINICAL FINDINGS
 ═══════════════════════════════════════════════════════════════════
 
 DIAGNOSTIC ASSESSMENT:
@@ -384,7 +437,7 @@ CLINICAL REASONING:
 {overall_analysis.get('clinical_reasoning', 'Diagnosis determined through systematic analysis of symptoms and clinical indicators.')}
 
 ═══════════════════════════════════════════════════════════════════
-                    RECOMMENDATIONS
+            RECOMMENDATIONS
 ═══════════════════════════════════════════════════════════════════
 
 SPECIALIST CONSULTATION:
@@ -397,7 +450,7 @@ NEXT STEPS:
 4. Follow up as directed by healthcare provider
 
 ═══════════════════════════════════════════════════════════════════
-                    IMPORTANT DISCLAIMERS
+            IMPORTANT DISCLAIMERS
 ═══════════════════════════════════════════════════════════════════
 
 MEDICAL DISCLAIMER:
@@ -413,10 +466,157 @@ ACCURACY CONSIDERATIONS:
 • Second opinions are recommended for complex medical cases
 
 ═══════════════════════════════════════════════════════════════════
-Report generated by AI Medical Analysis System
+Report generated by Llama 3.1 8B UltraMedical (8-bit Quantization GGUF)
 Session: {session_id} | Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 ═══════════════════════════════════════════════════════════════════
 """
+
+    def _get_alternative_diagnoses(self, state: Dict[str, Any]) -> str:
+        """Extract and format alternative diagnoses from state data"""
+        
+        alternative_diagnoses = []
+        
+        # Get diagnoses based on workflow path
+        textual_analysis = state.get("textual_analysis", [])
+        followup_diagnosis = state.get("followup_diagnosis", [])
+        skin_lesion_analysis = state.get("skin_lesion_analysis", {})
+        
+        # Determine which diagnosis list to use
+        if followup_diagnosis and len(followup_diagnosis) > 1:
+            # Use enhanced follow-up diagnoses
+            primary_diagnosis = followup_diagnosis[0].get("text_diagnosis", "")
+            for i, diag in enumerate(followup_diagnosis[1:], 1):
+                if i <= 3:  # Show top 3 alternatives
+                    diagnosis_text = diag.get("text_diagnosis", "Unknown")
+                    confidence = diag.get("diagnosis_confidence", 0.0)
+                    alternative_diagnoses.append(f"{i}. {diagnosis_text} ({confidence:.1%} confidence)")
+        
+        elif textual_analysis and len(textual_analysis) > 1:
+            # Use initial textual analysis alternatives
+            primary_diagnosis = textual_analysis[0].get("text_diagnosis", "")
+            for i, diag in enumerate(textual_analysis[1:], 1):
+                if i <= 3:  # Show top 3 alternatives
+                    diagnosis_text = diag.get("text_diagnosis", "Unknown")
+                    confidence = diag.get("diagnosis_confidence", 0.0)
+                    alternative_diagnoses.append(f"{i}. {diagnosis_text} ({confidence:.1%} confidence)")
+        
+        elif skin_lesion_analysis.get("confidence_score"):
+            # Use image analysis alternatives for skin conditions
+            confidence_scores = skin_lesion_analysis.get("confidence_score", {})
+            sorted_conditions = sorted(confidence_scores.items(), key=lambda x: x[1], reverse=True)
+            
+            # Skip the primary diagnosis (highest confidence) and show alternatives
+            for i, (condition, confidence) in enumerate(sorted_conditions[1:4], 1):
+                alternative_diagnoses.append(f"{i}. {condition} ({confidence:.1f}% confidence)")
+        
+        if alternative_diagnoses:
+            alternatives_text = "\n".join([f"• {alt}" for alt in alternative_diagnoses])
+            return f"The following alternative diagnoses were also considered:\n{alternatives_text}\n\nThese alternatives may warrant further evaluation if primary diagnosis is ruled out."
+        else:
+            return "No significant alternative diagnoses identified based on current analysis. Additional testing may reveal other possibilities."
+
+    def _get_analysis_type_display(self, workflow_path: list, state: Dict[str, Any]) -> str:
+        """Get user-friendly analysis type description"""
+        has_followup = bool(state.get("followup_response"))
+        has_image = bool(state.get("skin_lesion_analysis", {}).get("image_diagnosis"))
+        
+        if has_followup and has_image:
+            return "Comprehensive Multi-Modal Analysis (Symptoms + Follow-up + Image)"
+        elif has_image:
+            return "Visual + Symptom Analysis (Dermatological Screening)"
+        elif has_followup:
+            return "Enhanced Symptom Analysis (with Follow-up Questions)"
+        else:
+            return "Standard Symptom Analysis"
+
+    def _get_urgency_template(self, severity: str) -> Dict[str, str]:
+        """Get urgency information based on severity"""
+        urgency_templates = {
+            "critical": {
+                "summary": "⚠️ URGENT: This condition requires immediate medical attention. Seek emergency care or contact your healthcare provider immediately.",
+                "warnings": "IMMEDIATE ACTION REQUIRED:\n• Contact emergency services if experiencing severe symptoms\n• Do not delay seeking professional medical care\n• Monitor symptoms closely and seek help if they worsen"
+            },
+            "severe": {
+                "summary": "⚠️ HIGH PRIORITY: This condition requires prompt medical evaluation within 24-48 hours.",
+                "warnings": "PROMPT CARE NEEDED:\n• Schedule urgent appointment with healthcare provider\n• Monitor symptoms closely for any worsening\n• Seek emergency care if symptoms become severe"
+            },
+            "moderate": {
+                "summary": "📋 MODERATE PRIORITY: Schedule medical consultation within 1-2 weeks for proper evaluation.",
+                "warnings": "MONITORING REQUIRED:\n• Schedule appointment with healthcare provider\n• Watch for symptom progression or new symptoms\n• Seek prompt care if condition worsens"
+            },
+            "mild": {
+                "summary": "📝 ROUTINE FOLLOW-UP: Consider scheduling regular check-up with healthcare provider.",
+                "warnings": "GENERAL MONITORING:\n• Continue observing symptoms\n• Schedule routine follow-up as appropriate\n• Contact healthcare provider if symptoms persist or worsen"
+            }
+        }
+        
+        return urgency_templates.get(severity.lower(), urgency_templates["moderate"])
+
+    def _get_confidence_interpretation(self, confidence: float) -> str:
+        """Get confidence level interpretation"""
+        if confidence >= 0.8:
+            return "This represents high diagnostic confidence based on clear symptom patterns."
+        elif confidence >= 0.6:
+            return "This represents moderate diagnostic confidence. Additional evaluation may be helpful."
+        elif confidence >= 0.4:
+            return "This represents preliminary assessment. Professional evaluation is recommended for confirmation."
+        else:
+            return "This represents initial screening only. Comprehensive medical evaluation is strongly recommended."
+
+    def _get_referral_timing(self, severity: str) -> str:
+        """Get referral timing based on severity"""
+        timing_map = {
+            "critical": "IMMEDIATE - Seek emergency care now",
+            "severe": "URGENT - Within 24-48 hours",
+            "moderate": "PROMPT - Within 1-2 weeks",
+            "mild": "ROUTINE - Within 4-6 weeks or as convenient"
+        }
+        return timing_map.get(severity.lower(), "As recommended by primary care provider")
+
+    def _create_evidence_summary(self, state: Dict[str, Any]) -> str:
+        """Create concise evidence summary from accumulated state"""
+        
+        evidence_parts = []
+        
+        # Symptom analysis
+        if state.get("textual_analysis"):
+            textual_count = len(state["textual_analysis"])
+            avg_confidence = state.get("average_confidence", 0)
+            evidence_parts.append(f"• Symptom Analysis: {textual_count} diagnoses considered (avg confidence: {avg_confidence:.1%})")
+        
+        # Follow-up enhancement
+        if state.get("followup_response"):
+            followup_count = len(state["followup_response"])
+            evidence_parts.append(f"• Enhanced Assessment: {followup_count} follow-up questions answered")
+
+        # Skin cancer risk assessment
+        if state.get("skin_cancer_risk_metrics"):
+            risk_metrics = state["skin_cancer_risk_metrics"]
+            core_score = risk_metrics.get("core_score", 0)
+            risk_level = risk_metrics.get("risk_level", "unknown")
+            evidence_parts.append(f"• ABCDE Risk Assessment: {core_score:.1f}/9.0 core score ({risk_level} risk)")
+            
+        # Image analysis
+        if state.get("skin_lesion_analysis"):
+            image_diagnosis = state["skin_lesion_analysis"].get("image_diagnosis", "Unknown")
+            evidence_parts.append(f"• Visual Analysis: {image_diagnosis} identified through image assessment")
+        
+        # Overall analysis
+        overall = state.get("overall_analysis", {})
+        if overall:
+            final_confidence = overall.get("final_confidence", 0)
+            evidence_parts.append(f"• Final Assessment: {final_confidence:.1%} diagnostic confidence")
+        
+        return "\n".join(evidence_parts) if evidence_parts else "• Standard symptom analysis completed"
+
+    def _get_analysis_duration(self, state: Dict[str, Any]) -> str:
+        """Get analysis duration if available"""
+        # You can track this in your workflow
+        return state.get("analysis_duration", "< 2 minutes")
+
+#==================================================
+# Medical Report Export Function
+#==================================================
 
     # Export functionality (only called from API endpoint)
     async def generate_export_file(self, state: dict, format: str, include_details: bool = True) -> bytes:
@@ -430,53 +630,82 @@ Session: {session_id} | Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             raise ValueError(f"Unsupported format: {format}")
     
     async def _generate_pdf_export(self, state: dict, include_details: bool) -> bytes:
-        """Generate PDF using reportlab (simplified version)"""
+        """Generate PDF using reportlab with template-based content"""
         try:
             buffer = BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, 
-                               topMargin=72, bottomMargin=18)
+                            topMargin=72, bottomMargin=18)
             styles = getSampleStyleSheet()
             story = []
             
-            # Add content
+            # Use the same template-based report generation
+            if not state.get("medical_report"):
+                # Generate the template-based report if not already generated
+                dynamic_content = await self._generate_followup_guidance(state)
+                full_report = self._create_template_based_report(state, dynamic_content)
+            else:
+                full_report = state.get("medical_report", "")
+            
+            # Extract key information for PDF formatting
             overall_analysis = state.get('overall_analysis', {})
-            medical_report = state.get('medical_report', '')
             
             # Title
             story.append(Paragraph("Medical Analysis Report", styles['Title']))
             story.append(Spacer(1, 12))
             
-            # Diagnosis
-            story.append(Paragraph("Primary Diagnosis", styles['Heading2']))
-            story.append(Paragraph(f"<b>Condition:</b> {overall_analysis.get('final_diagnosis', 'N/A')}", styles['Normal']))
-            story.append(Paragraph(f"<b>Confidence Level:</b> {(overall_analysis.get('final_confidence', 0) * 100):.1f}%", styles['Normal']))
-            story.append(Paragraph(f"<b>Severity:</b> {overall_analysis.get('final_severity', 'N/A').title()}", styles['Normal']))
-            story.append(Paragraph(f"<b>Recommended Specialist:</b> {overall_analysis.get('specialist_recommendation', 'General Practitioner').replace('_', ' ').title()}", styles['Normal']))
+            # Header information
+            story.append(Paragraph(f"Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}", styles['Normal']))
+            story.append(Paragraph(f"Session ID: {state.get('session_id', 'Unknown')}", styles['Normal']))
             story.append(Spacer(1, 12))
             
-            # User explanation
-            if overall_analysis.get('user_explanation'):
-                story.append(Paragraph("What is it?", styles['Heading2']))
-                story.append(Paragraph(overall_analysis.get('user_explanation'), styles['Normal']))
+            if include_details:
+                # Use the full template-based report
+                # Split the report into sections and format appropriately
+                sections = full_report.split('═══════════════════════════════════════════════════════════════════')
+                
+                for section in sections:
+                    if section.strip():
+                        # Clean up the section text
+                        section_text = section.strip()
+                        if section_text:
+                            # Check if it's a header (all caps or specific patterns)
+                            lines = section_text.split('\n')
+                            for line in lines:
+                                line = line.strip()
+                                if line:
+                                    # Detect headers vs content
+                                    if line.isupper() or line.startswith('MEDICAL ANALYSIS REPORT') or 'EXECUTIVE SUMMARY' in line:
+                                        story.append(Paragraph(line, styles['Heading2']))
+                                    elif line.startswith('Generated by') or line.startswith('Report ID'):
+                                        story.append(Paragraph(line, styles['Normal']))
+                                        story.append(Spacer(1, 6))
+                                    else:
+                                        # Regular content
+                                        if len(line) > 200:  # Long paragraphs
+                                            # Split long content into smaller paragraphs
+                                            for paragraph in line.split('. '):
+                                                if paragraph.strip():
+                                                    story.append(Paragraph(paragraph.strip() + '.', styles['Normal']))
+                                                    story.append(Spacer(1, 3))
+                                        else:
+                                            story.append(Paragraph(line, styles['Normal']))
+                                            story.append(Spacer(1, 3))
+            else:
+                # Summary version - extract key information
+                story.append(Paragraph("Executive Summary", styles['Heading2']))
+                story.append(Paragraph(f"Primary Diagnosis: {overall_analysis.get('final_diagnosis', 'N/A')}", styles['Normal']))
+                story.append(Paragraph(f"Confidence Level: {(overall_analysis.get('final_confidence', 0) * 100):.1f}%", styles['Normal']))
+                story.append(Paragraph(f"Severity: {overall_analysis.get('final_severity', 'N/A').title()}", styles['Normal']))
+                story.append(Paragraph(f"Recommended Specialist: {overall_analysis.get('specialist_recommendation', 'General Practitioner').replace('_', ' ').title()}", styles['Normal']))
                 story.append(Spacer(1, 12))
+                
+                # User explanation
+                if overall_analysis.get('user_explanation'):
+                    story.append(Paragraph("Condition Overview", styles['Heading2']))
+                    story.append(Paragraph(overall_analysis.get('user_explanation'), styles['Normal']))
+                    story.append(Spacer(1, 12))
             
-            # Clinical reasoning if details included
-            if include_details and overall_analysis.get('clinical_reasoning'):
-                story.append(Paragraph("Clinical Reasoning", styles['Heading2']))
-                story.append(Paragraph(overall_analysis.get('clinical_reasoning'), styles['Normal']))
-                story.append(Spacer(1, 12))
-            
-            # Full report if available and details included
-            if include_details and medical_report:
-                story.append(Paragraph("Detailed Medical Report", styles['Heading2']))
-                # Split long text into paragraphs
-                for paragraph in medical_report.split('\n\n'):
-                    if paragraph.strip():
-                        story.append(Paragraph(paragraph.strip(), styles['Normal']))
-                        story.append(Spacer(1, 6))
-            
-            # Disclaimer
-            story.append(Spacer(1, 24))
+            # Always include disclaimer
             story.append(Paragraph("Medical Disclaimer", styles['Heading3']))
             disclaimer_text = ("This AI-generated report is for informational purposes only and should not replace "
                             "professional medical advice, diagnosis, or treatment. Always consult with qualified "
@@ -491,66 +720,103 @@ Session: {session_id} | Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             logger.error(f"❌ PDF generation failed: {e}")
             # Fallback to text
             return self._generate_text_export(state, include_details).encode('utf-8')
-    
+
     async def _generate_word_export(self, state: Dict[str, Any], include_details: bool) -> bytes:
-        """Generate Word document using python-docx (simplified version)"""
+        """Generate Word document using template-based content"""
         try:
             doc = Document()
-        
-            # Add content
+            
+            # Use the same template-based report generation
+            if not state.get("medical_report"):
+                # Generate the template-based report if not already generated
+                dynamic_content = await self._generate_followup_guidance(state)
+                full_report = self._create_template_based_report(state, dynamic_content)
+            else:
+                full_report = state.get("medical_report", "")
+            
+            # Extract key information
             overall_analysis = state.get('overall_analysis', {})
-            medical_report = state.get('medical_report', '')
             
             # Title
             title = doc.add_heading('Medical Analysis Report', 0)
             title.alignment = 1  # Center alignment
             
             # Header info
-            doc.add_paragraph(f"Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}")
+            doc.add_paragraph(f"Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}")
+            doc.add_paragraph(f"Session ID: {state.get('session_id', 'Unknown')}")
             doc.add_paragraph("")  # Empty line
             
-            # Diagnosis section
-            doc.add_heading('Primary Diagnosis', level=1)
+            if include_details:
+                # Use the full template-based report
+                # Process the full report content
+                sections = full_report.split('═══════════════════════════════════════════════════════════════════')
+                
+                for section in sections:
+                    if section.strip():
+                        section_text = section.strip()
+                        if section_text:
+                            lines = section_text.split('\n')
+                            current_heading = None
+                            current_content = []
+                            
+                            for line in lines:
+                                line = line.strip()
+                                if line:
+                                    # Detect headers
+                                    if (line.isupper() and len(line) < 50) or 'EXECUTIVE SUMMARY' in line or 'CLINICAL ASSESSMENT' in line:
+                                        # Add previous content if any
+                                        if current_content:
+                                            content_text = '\n'.join(current_content)
+                                            if content_text.strip():
+                                                doc.add_paragraph(content_text)
+                                            current_content = []
+                                        
+                                        # Add new heading
+                                        if line != 'MEDICAL ANALYSIS REPORT':
+                                            doc.add_heading(line.title(), level=1)
+                                        current_heading = line
+                                    else:
+                                        # Regular content
+                                        current_content.append(line)
+                            
+                            # Add remaining content
+                            if current_content:
+                                content_text = '\n'.join(current_content)
+                                if content_text.strip():
+                                    doc.add_paragraph(content_text)
+            else:
+                # Summary version
+                doc.add_heading('Executive Summary', level=1)
+                
+                # Create a table for key information
+                table = doc.add_table(rows=4, cols=2)
+                table.style = 'Table Grid'
+                
+                # Fill table with key information
+                cells = table.rows[0].cells
+                cells[0].text = 'Primary Diagnosis'
+                cells[1].text = overall_analysis.get('final_diagnosis', 'N/A')
+                
+                cells = table.rows[1].cells
+                cells[0].text = 'Confidence Level'
+                cells[1].text = f"{(overall_analysis.get('final_confidence', 0) * 100):.1f}%"
+                
+                cells = table.rows[2].cells
+                cells[0].text = 'Severity'
+                cells[1].text = overall_analysis.get('final_severity', 'N/A').title()
+                
+                cells = table.rows[3].cells
+                cells[0].text = 'Recommended Specialist'
+                cells[1].text = overall_analysis.get('specialist_recommendation', 'General Practitioner').replace('_', ' ').title()
+                
+                doc.add_paragraph("")  # Empty line
+                
+                # User explanation
+                if overall_analysis.get('user_explanation'):
+                    doc.add_heading('Condition Overview', level=1)
+                    doc.add_paragraph(overall_analysis.get('user_explanation'))
             
-            # Create a table for diagnosis info
-            table = doc.add_table(rows=4, cols=2)
-            table.style = 'Table Grid'
-            
-            # Fill table
-            cells = table.rows[0].cells
-            cells[0].text = 'Condition'
-            cells[1].text = overall_analysis.get('final_diagnosis', 'N/A')
-            
-            cells = table.rows[1].cells
-            cells[0].text = 'Confidence Level'
-            cells[1].text = f"{(overall_analysis.get('final_confidence', 0) * 100):.1f}%"
-            
-            cells = table.rows[2].cells
-            cells[0].text = 'Severity'
-            cells[1].text = overall_analysis.get('final_severity', 'N/A').title()
-            
-            cells = table.rows[3].cells
-            cells[0].text = 'Recommended Specialist'
-            cells[1].text = overall_analysis.get('specialist_recommendation', 'General Practitioner').replace('_', ' ').title()
-            
-            doc.add_paragraph("")  # Empty line
-            
-            # User explanation
-            if overall_analysis.get('user_explanation'):
-                doc.add_heading('What is it?', level=1)
-                doc.add_paragraph(overall_analysis.get('user_explanation'))
-            
-            # Clinical reasoning if details included
-            if include_details and overall_analysis.get('clinical_reasoning'):
-                doc.add_heading('Clinical Reasoning', level=1)
-                doc.add_paragraph(overall_analysis.get('clinical_reasoning'))
-            
-            # Full report if available and details included
-            if include_details and medical_report:
-                doc.add_heading('Detailed Medical Report', level=1)
-                doc.add_paragraph(medical_report)
-            
-            # Disclaimer
+            # Always include disclaimer
             doc.add_heading('Medical Disclaimer', level=2)
             disclaimer_text = ("This AI-generated report is for informational purposes only and should not replace "
                             "professional medical advice, diagnosis, or treatment. Always consult with qualified "
@@ -569,31 +835,65 @@ Session: {session_id} | Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             return self._generate_text_export(state, include_details).encode('utf-8')
 
     def _generate_text_export(self, state: dict, include_details: bool) -> str:
-        """Generate plain text export as fallback"""
-        overall_analysis = state.get('overall_analysis', {})
-        medical_report = state.get('medical_report', '')
+        """Generate plain text export using template-based content"""
         
-        content = f"""MEDICAL ANALYSIS REPORT
-Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+        # Use the same template-based report generation
+        if not state.get("medical_report"):
+            # Need to generate the report content
+            overall_analysis = state.get("overall_analysis", {})
+            
+            if include_details:
+                # Create a simplified template for text export
+                return f"""MEDICAL ANALYSIS REPORT
+    Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+    Session ID: {state.get('session_id', 'Unknown')}
 
-PRIMARY DIAGNOSIS
-Condition: {overall_analysis.get('final_diagnosis', 'N/A')}
-Confidence: {(overall_analysis.get('final_confidence', 0) * 100):.1f}%
-Severity: {overall_analysis.get('final_severity', 'N/A').title()}
-Specialist: {overall_analysis.get('specialist_recommendation', 'General Practitioner').replace('_', ' ').title()}
+    PRIMARY DIAGNOSIS: {overall_analysis.get('final_diagnosis', 'N/A')}
+    CONFIDENCE: {(overall_analysis.get('final_confidence', 0) * 100):.1f}%
+    SEVERITY: {overall_analysis.get('final_severity', 'N/A').title()}
+    SPECIALIST: {overall_analysis.get('specialist_recommendation', 'General Practitioner').replace('_', ' ').title()}
 
-"""
-        
-        if overall_analysis.get('user_explanation'):
-            content += f"WHAT IS IT?\n{overall_analysis.get('user_explanation')}\n\n"
-        
-        if include_details and overall_analysis.get('clinical_reasoning'):
-            content += f"CLINICAL REASONING\n{overall_analysis.get('clinical_reasoning')}\n\n"
-        
-        if include_details and medical_report:
-            content += f"DETAILED MEDICAL REPORT\n{medical_report}\n\n"
-        
-        content += """MEDICAL DISCLAIMER
+    CONDITION OVERVIEW:
+    {overall_analysis.get('user_explanation', 'Analysis completed based on provided symptoms.')}
+
+    CLINICAL REASONING:
+    {overall_analysis.get('clinical_reasoning', 'Diagnosis determined through systematic analysis of symptoms and clinical indicators.')}
+
+    MEDICAL DISCLAIMER:
+    This AI-generated report is for informational purposes only and should not replace professional medical advice, diagnosis, or treatment. Always consult with qualified healthcare professionals for medical concerns."""
+            else:
+                return f"""MEDICAL ANALYSIS REPORT - SUMMARY
+    Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+
+    PRIMARY DIAGNOSIS: {overall_analysis.get('final_diagnosis', 'N/A')}
+    CONFIDENCE: {(overall_analysis.get('final_confidence', 0) * 100):.1f}%
+    SEVERITY: {overall_analysis.get('final_severity', 'N/A').title()}
+    SPECIALIST: {overall_analysis.get('specialist_recommendation', 'General Practitioner').replace('_', ' ').title()}
+
+    WHAT IS IT?
+    {overall_analysis.get('user_explanation', 'Analysis completed based on provided symptoms.')}
+
+    MEDICAL DISCLAIMER:
+    This AI-generated report is for informational purposes only and should not replace professional medical advice, diagnosis, or treatment. Always consult with qualified healthcare professionals for medical concerns."""
+        else:
+            # Use existing template-based report
+            full_report = state.get("medical_report", "")
+            
+            if include_details:
+                return full_report
+            else:
+                # Extract summary from full report
+                overall_analysis = state.get("overall_analysis", {})
+                return f"""MEDICAL ANALYSIS REPORT - SUMMARY
+    Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+
+    PRIMARY DIAGNOSIS: {overall_analysis.get('final_diagnosis', 'N/A')}
+    CONFIDENCE: {(overall_analysis.get('final_confidence', 0) * 100):.1f}%
+    SEVERITY: {overall_analysis.get('final_severity', 'N/A').title()}
+    SPECIALIST: {overall_analysis.get('specialist_recommendation', 'General Practitioner').replace('_', ' ').title()}
+
+    WHAT IS IT?
+    {overall_analysis.get('user_explanation', 'Analysis completed based on provided symptoms.')}
+
+    MEDICAL DISCLAIMER:
 This AI-generated report is for informational purposes only and should not replace professional medical advice, diagnosis, or treatment. Always consult with qualified healthcare professionals for medical concerns."""
-        
-        return content

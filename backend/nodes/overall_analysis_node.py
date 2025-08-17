@@ -1,4 +1,4 @@
-from adapters.local_model_adapter import LocalModelAdapter
+from adapters.local_model_adapter4 import LocalModelAdapter
 from typing import Dict, Any, Optional, List
 import re
 
@@ -23,6 +23,7 @@ class OverallAnalysisNode:
         
         try:
             workflow_path = state.get("workflow_path", [])
+            print(f"WORKFLOW PATH :{workflow_path}")
             
             # Get the best available diagnosis
             followup_diagnosis = state.get("followup_diagnosis", [])
@@ -40,11 +41,10 @@ class OverallAnalysisNode:
             
             # Handle None confidence values (from skin cancer screening)
             if diagnosis_confidence is None:
-                print("⚠️ Warning: diagnosis_confidence is None, setting to 0.0")
                 diagnosis_confidence = 0.0
             
             # Create safe primary diagnosis dict
-            safe_primary_diagnosis = {
+            primary_diagnosis = {
                 "text_diagnosis": diagnosis_text,
                 "diagnosis_confidence": float(diagnosis_confidence)
             }
@@ -53,9 +53,15 @@ class OverallAnalysisNode:
             if workflow_path == ["textual_only"]:
                 print("📊 Running Instance 1: Textual Only Analysis")
                 enhanced_analysis = await self._analyze_textual_only(state)
-            elif workflow_path == ['textual_to_skin_screening']:
+            elif 'skin_to_image_analysis' in workflow_path:
                 print("📊 Running Instance 2: Textual + Image Analysis")
                 enhanced_analysis = await self._analyze_textual_and_image(state)
+                #To update primary_diagnosis with LLM synthesis results for skin lesion workflow
+                primary_diagnosis = {
+                    "text_diagnosis": enhanced_analysis.get("diagnosis", primary_diagnosis["text_diagnosis"]),
+                    "diagnosis_confidence": enhanced_analysis.get("confidence", primary_diagnosis["diagnosis_confidence"])
+                }
+                
             elif "followup_only" in workflow_path or "skin_to_standard_followup" in workflow_path:
                 print("📊 Running Instance 3: Textual + Follow-up Analysis")
                 enhanced_analysis = await self._analyze_textual_and_followup(state)
@@ -68,8 +74,8 @@ class OverallAnalysisNode:
             
            # Store simplified overall analysis results
             state["overall_analysis"] = {
-                "final_diagnosis": safe_primary_diagnosis.get("text_diagnosis", "Unknown"),
-                "final_confidence": safe_primary_diagnosis.get("diagnosis_confidence", 0.0),
+                "final_diagnosis": primary_diagnosis.get("text_diagnosis", "Unknown"),
+                "final_confidence": primary_diagnosis.get("diagnosis_confidence", 0.0),
                 "final_severity": enhanced_analysis["severity"],
                 "user_explanation": enhanced_analysis.get("user_explanation", "Enhanced analysis performed based on available data"),
                 "clinical_reasoning": enhanced_analysis.get("clinical_reasoning", "Diagnosis determined through systematic analysis of symptoms and clinical indicators"),
@@ -105,32 +111,48 @@ class OverallAnalysisNode:
     
     #INSTANCE 2: Textual + Image Analysis**
     async def _analyze_textual_and_image(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Combine textual and image analysis"""
-        followup_qna = state.get("followup_qna_overall", "") #includes the original symptom and followup qna
-        #Followup_diagnosis not needed as its a placeholder to inform user about suspicious skin lesion
+        """Combine textual and image analysis with LLM synthesis"""
+        
+        followup_qna = state.get("followup_qna_overall", "")
         skin_lesion_analysis = state.get("skin_lesion_analysis", {})
+        skin_risk_metrics = state.get("skin_cancer_risk_metrics", {})
         
         if not skin_lesion_analysis.get("image_diagnosis"):
             raise ValueError("No image analysis available")
         
-        # Generate combined analysis
-        assessment_text = await self.adapter.generate_overall_instance2(
-            followup_qna=followup_qna,
-            image_diagnosis=skin_lesion_analysis.get("image_diagnosis", "Unknown"),
-            image_confidence=skin_lesion_analysis.get("confidence_score", {})
-        )
+        # Enhanced context for LLM decision-making
+        risk_context = ""
+
+        if skin_risk_metrics:
+            core_score = skin_risk_metrics.get("core_score", 0)
+            risk_level = skin_risk_metrics.get("risk_level", "unknown")
+            any_adjunct_yes = skin_risk_metrics.get("any_adjunct_yes", False)
+            details = skin_risk_metrics.get("details", [])
+            
+            # Add specific ABCDE findings
+            abcde_findings = []
+            for detail in details:
+                if not detail.get("adjunct", True) and detail.get("value", 0) > 0.5:
+                    abcde_findings.append(f"{detail['category']}: {detail['answer']}")
+            
+        risk_context = f"""
+    ABCDE Risk Assessment Context:
+    - Core ABCDE Score: {core_score:.1f}/9.0 (max 9.0)
+    - Risk Level: {risk_level}
+    - Specific Findings: {', '.join(abcde_findings) if abcde_findings else 'None significant'}
+    - Excessive Sun Exposure / Family History Concerns: {"Yes" if any_adjunct_yes else "No"}
+            """
         
-        ##create proper primary diagnosis from image analysis
+        # Get image analysis details
+        image_diagnosis = skin_lesion_analysis.get("image_diagnosis", "Unknown")
         image_confidence_scores = skin_lesion_analysis.get("confidence_score", {})
-        max_image_confidence = max(image_confidence_scores.values()) / 100 if image_confidence_scores else 0.0        
+        max_confidence = max(image_confidence_scores.values()) if image_confidence_scores else 0
+
+        assessment_text = await self.adapter.generate_overall_instance2(followup_qna, image_diagnosis, image_confidence_scores, max_confidence, risk_context)
+
+        # Parse LLM decision instead of forcing image diagnosis
+        return self._parse_llm_skin_synthesis(assessment_text, skin_lesion_analysis, skin_risk_metrics)
         
-        primary_analysis = {
-            "text_diagnosis": skin_lesion_analysis.get("image_diagnosis", "Unknown"),
-            "diagnosis_confidence": max_image_confidence
-        }
-        
-        return self._parse_enhanced_analysis(assessment_text, primary_analysis)
-    
     #INSTANCE 3: Textual + Follow-up Analysis**
     async def _analyze_textual_and_followup(self, state: dict[str, Any]) -> dict[str, Any]:
         """Analyze textual diagnosis enhanced with follow-up responses"""
@@ -247,6 +269,188 @@ class OverallAnalysisNode:
             "clinical_reasoning": clinical_reasoning,
             "specialist_recommendation": specialist_recommendation
         }
+        
+    def _parse_llm_skin_synthesis(self, assessment_text: str, image_analysis: dict, risk_metrics: dict) -> dict[str, Any]:
+        """Parse LLM synthesis with same detailed patterns as _parse_enhanced_analysis"""
+        
+        print(f"🔍 LLM Skin Synthesis Result:\n{assessment_text}")
+        
+        # If assessment text is empty, create fallback
+        if not assessment_text or len(assessment_text.strip()) < 10:
+            print("⚠️ Empty skin synthesis assessment text - using fallback")
+            return self._create_fallback_synthesis(image_analysis, risk_metrics)
+        
+        try:
+            # Extract LLM's final diagnosis decision with multiple patterns
+            diagnosis_patterns = [
+                r"(?:^|\n)\s*-?\s*Final Diagnosis:\s*(.+?)(?=\n|$)",
+                r"Final Diagnosis:\s*(.+?)(?=\n|$)",
+                r"(?:^|\n)\s*-?\s*Diagnosis:\s*(.+?)(?=\n|$)",
+                r"diagnosis[:\s]*(.+?)(?=confidence|\n\s*-|$)",
+            ]
+            
+            final_diagnosis = None
+            for pattern in diagnosis_patterns:
+                diagnosis_match = re.search(pattern, assessment_text, re.IGNORECASE)
+                if diagnosis_match:
+                    final_diagnosis = diagnosis_match.group(1).strip()
+                    # Clean up formatting
+                    final_diagnosis = re.sub(r'^[^\w]*', '', final_diagnosis)  # Remove leading non-word chars
+                    if len(final_diagnosis) > 5:  # Must be meaningful
+                        break
+                    else:
+                        final_diagnosis = None
+            
+            # Extract confidence with multiple patterns
+            confidence_patterns = [
+                r"(?:^|\n)\s*-?\s*Confidence:\s*([\d.]+)",
+                r"Confidence:\s*([\d.]+)",
+                r"confidence[:\s]*([\d.]+)",
+                r"certainty[:\s]*([\d.]+)",
+            ]
+            
+            confidence = None
+            for pattern in confidence_patterns:
+                confidence_match = re.search(pattern, assessment_text, re.IGNORECASE)
+                if confidence_match:
+                    try:
+                        confidence = float(confidence_match.group(1))
+                        if 0.0 <= confidence <= 1.0:
+                            break
+                        else:
+                            confidence = None
+                    except ValueError:
+                        confidence = None
+            
+            # If LLM parsing fails, fall back to image diagnosis with adjusted confidence
+            if not final_diagnosis or confidence is None:
+                print("⚠️ LLM synthesis parsing failed - using image diagnosis with context adjustment")
+                final_diagnosis = image_analysis.get("image_diagnosis", "Unknown")
+                
+                # Adjust confidence based on ABCDE concordance
+                image_confidence = max(image_analysis.get("confidence_score", {}).values()) / 100 if image_analysis.get("confidence_score") else 0.5
+                risk_level = risk_metrics.get("risk_level", "unknown")
+                
+                # Concordance adjustment
+                if risk_level == "high" and "melanoma" in final_diagnosis.lower():
+                    confidence = min(0.9, image_confidence + 0.2)  # High concordance
+                elif risk_level == "low" and "benign" in final_diagnosis.lower():
+                    confidence = min(0.85, image_confidence + 0.15)  # Good concordance
+                else:
+                    confidence = max(0.4, image_confidence - 0.1)  # Potential discordance
+            
+            # Extract severity with same patterns as _parse_enhanced_analysis
+            severity_patterns = [
+                r"(?:^|\n)\s*-?\s*Severity:\s*(\w+)",
+                r"Severity:\s*(\w+)",
+                r"severity\s*(?:is|:)?\s*(\w+)",
+            ]
+            
+            final_severity = "moderate"  # Default
+            for pattern in severity_patterns:
+                severity_match = re.search(pattern, assessment_text, re.IGNORECASE)
+                if severity_match:
+                    severity_candidate = severity_match.group(1).strip().lower()
+                    if severity_candidate in ["mild", "moderate", "severe", "critical"]:
+                        final_severity = severity_candidate
+                        break
+            
+            # Extract user explanation with same patterns
+            user_explanation_patterns = [
+                r"(?:^|\n)\s*-?\s*User Explanation:\s*(.+?)(?=\n\s*-?\s*Clinical Reasoning|\n\s*-?\s*Specialist|$)",
+                r"User Explanation:\s*(.+?)(?=Clinical Reasoning|Specialist|$)",
+                r"(?:^|\n)\s*-?\s*User Explanation:\s*(.+?)(?=\n\s*-|$)",
+                r"explanation[:\s]*(.+?)(?=reasoning|specialist|\n\s*-|$)",
+            ]
+            
+            user_explanation = None
+            for pattern in user_explanation_patterns:
+                explanation_match = re.search(pattern, assessment_text, re.IGNORECASE | re.DOTALL)
+                if explanation_match:
+                    user_explanation = explanation_match.group(1).strip()
+                    # Clean up formatting
+                    user_explanation = re.sub(r'\n+', ' ', user_explanation)
+                    user_explanation = re.sub(r'\s+', ' ', user_explanation)
+                    user_explanation = re.sub(r'^[^\w]*', '', user_explanation)
+                    if len(user_explanation) > 15:
+                        break
+                    else:
+                        user_explanation = None
+            
+            # Fallback for user explanation
+            if not user_explanation:
+                user_explanation = f"{final_diagnosis} has been identified through comprehensive skin analysis including ABCDE screening and image evaluation."
+            
+            # Extract clinical reasoning with same patterns
+            clinical_reasoning_patterns = [
+                r"(?:^|\n)\s*-?\s*Clinical Reasoning:\s*(.+?)(?=\n\s*-?\s*Specialist|$)",
+                r"Clinical Reasoning:\s*(.+?)(?=Specialist|$)",
+                r"(?:^|\n)\s*-?\s*Clinical Reasoning:\s*(.+?)(?=\n\s*-|$)",
+                r"reasoning[:\s]*(.+?)(?=specialist|\n\s*-|$)",
+                r"justification[:\s]*(.+?)(?=specialist|\n\s*-|$)",
+            ]
+            
+            clinical_reasoning = None
+            for pattern in clinical_reasoning_patterns:
+                reasoning_match = re.search(pattern, assessment_text, re.IGNORECASE | re.DOTALL)
+                if reasoning_match:
+                    clinical_reasoning = reasoning_match.group(1).strip()
+                    # Clean up formatting
+                    clinical_reasoning = re.sub(r'\n+', ' ', clinical_reasoning)
+                    clinical_reasoning = re.sub(r'\s+', ' ', clinical_reasoning)
+                    clinical_reasoning = re.sub(r'^[^\w]*', '', clinical_reasoning)
+                    if len(clinical_reasoning) > 25:
+                        break
+                    else:
+                        clinical_reasoning = None
+
+            # Fallback for clinical reasoning
+            if not clinical_reasoning:
+                core_score = risk_metrics.get("core_score", 0)
+                risk_level = risk_metrics.get("risk_level", "unknown")
+                clinical_reasoning = f"Diagnosis {final_diagnosis} determined through integration of ABCDE screening (score: {core_score:.1f}/9.0, risk: {risk_level}) and image analysis findings. Evidence concordance supports this assessment."
+            
+            # Extract specialist with same patterns
+            specialist_patterns = [
+                r"(?:^|\n)\s*-?\s*Specialist:\s*([^\n]+)",
+                r"Specialist:\s*([^\n]+)",
+                r"specialist[:\s]*([^\n]+)",
+                r"referral[:\s]*([^\n]+)",
+                r"refer to[:\s]*([^\n]+)",
+            ]
+            
+            specialist_recommendation = "dermatologist"  # Default for skin conditions
+            for pattern in specialist_patterns:
+                specialist_match = re.search(pattern, assessment_text, re.IGNORECASE)
+                if specialist_match:
+                    specialist = specialist_match.group(1).strip().lower()
+                    # Cleanup - remove underscores and special characters but keep forward slashes
+                    specialist = re.sub(r'[^a-z\s/]', '', specialist)
+                    # Replace "or" with " / "
+                    specialist = re.sub(r'\s+or\s+', ' / ', specialist)
+                    specialist = specialist.strip()
+                    if specialist and len(specialist) > 3:
+                        specialist_recommendation = specialist
+                        break
+            
+            return {
+                "diagnosis": final_diagnosis,
+                "confidence": confidence,
+                "severity": final_severity,
+                "user_explanation": user_explanation,
+                "clinical_reasoning": clinical_reasoning,
+                "specialist_recommendation": specialist_recommendation
+            }
+            
+        except Exception as e:
+            print(f"❌ LLM skin synthesis parsing error: {e}")
+            # Complete fallback
+            return self._create_fallback_synthesis(image_analysis, risk_metrics)
+            
+        except Exception as e:
+            print(f"❌ LLM synthesis parsing error: {e}")
+            # Complete fallback
+            return self._create_fallback_synthesis(image_analysis, risk_metrics)
         
     async def _analyze_fallback(self, state: dict[str, Any]) -> dict[str, Any]:
         """Fallback analysis when other methods fail"""

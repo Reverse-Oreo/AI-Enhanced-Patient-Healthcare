@@ -7,6 +7,8 @@ import logging
 import os
 import psutil
 import torch
+import math
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +56,7 @@ class LocalModelAdapter(ModelInterface):
                 "n_ctx": 1024,                       # Optimal context for speed (11.41s vs 12.02s)
                 "seed": 42,                         # Reproducible results
                 "logits_all": False,               # Memory optimization
-                "embedding": False,                 # We don't need embeddings
+                "embedding": False,                 # don't need embeddings
                 "n_threads": 4,                     # Optimal CPU threads (best performance: 11.24s)
                 "n_threads_batch": 4,               # Optimal batch processing threads
                 "mul_mat_q": True,                  # FASTEST: Quantized matrix mult (10.93s)
@@ -144,7 +146,7 @@ class LocalModelAdapter(ModelInterface):
         except Exception as e:
             logger.error(f"Llama-cpp-python text generation error: {e}")
             return ""
-
+        
     def _format_prompt(self, user_input: str) -> str:
         """Consistent prompt format"""
         system_prompt = (
@@ -160,16 +162,234 @@ class LocalModelAdapter(ModelInterface):
             f"{user_input}<|eot_id|>"
             "<|start_header_id|>assistant<|end_header_id|>\n"
         )
+        
+    # =============================================================================
+    # CONFIDENCE CALCULATION METHODS
+    # =============================================================================
 
+    def _calculate_diagnosis_specificity(self, diagnosis: str) -> float:
+        """Calculate how specific/detailed the diagnosis is"""
+        # More words = more specific
+        word_count = len(diagnosis.split())
+        
+        # Medical terminology indicators
+        medical_terms = ['syndrome', 'disease', 'disorder', 'condition', 'infection', 
+                        'deficiency', 'inflammation', 'acute', 'chronic', 'primary', 'secondary']
+        has_medical_terms = any(term.lower() in diagnosis.lower() for term in medical_terms)
+        
+        # Specificity indicators
+        specificity_indicators = ['stage', 'grade', 'type', 'variant', 'sub', 'mild', 'severe', 'moderate']
+        has_specificity = any(ind.lower() in diagnosis.lower() for ind in specificity_indicators)
+        
+        score = 0.5  # Base score
+        score += min(0.3, word_count * 0.05)  # Word count bonus
+        score += 0.15 if has_medical_terms else 0
+        score += 0.1 if has_specificity else 0
+        
+        return min(1.0, score)
+
+    def _calculate_symptom_alignment(self, diagnosis: str, symptoms: str) -> float:
+        """Calculate how well diagnosis aligns with reported symptoms"""
+        if not symptoms:
+            return 0.5
+        
+        # Simple keyword matching (can be enhanced with medical ontologies)
+        symptom_keywords = symptoms.lower().split()
+        diagnosis_keywords = diagnosis.lower().split()
+        
+        # Common medical condition keywords
+        alignment_keywords = {
+            'chest pain': ['heart', 'cardiac', 'angina', 'myocardial', 'coronary'],
+            'headache': ['migraine', 'tension', 'cluster', 'neurological'],
+            'fever': ['infection', 'inflammatory', 'viral', 'bacterial'],
+            'cough': ['respiratory', 'bronchitis', 'pneumonia', 'asthma'],
+            'fatigue': ['anemia', 'thyroid', 'depression', 'chronic'],
+            'skin': ['dermatitis', 'eczema', 'psoriasis', 'rash', 'lesion']
+        }
+        
+        alignment_score = 0.5  # Base alignment
+        
+        # Check for direct keyword matches
+        for symptom_word in symptom_keywords:
+            if any(symptom_word in diag_word for diag_word in diagnosis_keywords):
+                alignment_score += 0.1
+        
+        # Check medical condition alignments
+        for symptom_phrase, related_terms in alignment_keywords.items():
+            if symptom_phrase in symptoms.lower():
+                if any(term in diagnosis.lower() for term in related_terms):
+                    alignment_score += 0.15
+        
+        return min(1.0, alignment_score)
+
+    def _get_condition_commonality(self, diagnosis: str) -> float:
+        """Get commonality score (common conditions = higher confidence)"""
+        common_conditions = [
+            'common cold', 'flu', 'hypertension', 'diabetes', 'migraine', 'tension headache', 'gastritis',
+            'bronchitis', 'pneumonia', 'urinary tract infection', 'allergic rhinitis', 'asthma',
+            'eczema', 'anemia', 'depression', 'anxiety', 'otitis media', 'sinusitis', 'conjunctivitis',
+            'gastroenteritis', 'osteoarthritis', 'back pain', 'hyperlipidemia', 'obesity', 'hypothyroidism',
+            'upper respiratory infection', 'acute pharyngitis', 'acute tonsillitis', 'acute otitis externa',
+            'acute sinusitis', 'acute bronchitis', 'acute gastroenteritis', 'acute cystitis', 'acute laryngitis',
+            'acute conjunctivitis', 'acute dermatitis', 'acute urticaria', 'acute allergic reaction',
+            'acute viral infection', 'acute bacterial infection', 'sprain', 'strain', 'muscle pain',
+            'tension-type headache', 'seasonal allergies', 'indigestion', 'heartburn', 'constipation',
+            'diarrhea', 'insomnia', 'fatigue', 'menstrual cramps', 'acne', 'dandruff'
+        ]
+        
+        rare_conditions = [
+            'lupus', 'multiple sclerosis', 'rare genetic', 'exotic',
+            'zebra diagnosis', 'uncommon', 'atypical',
+            'amyloidosis', 'sarcoidosis', 'porphyria', 'prion disease',
+            'ehlers-danlos', 'marfan syndrome', 'wilson disease', 'gauchers disease',
+            'fabry disease', 'tay-sachs', 'kawasaki disease', 'behcet disease',
+            'goodpasture syndrome', 'churg-strauss', 'wegener granulomatosis',
+            'sjogren syndrome', 'myasthenia gravis', 'lambert-eaton', 'paraneoplastic',
+            'idiopathic pulmonary fibrosis', 'idiopathic thrombocytopenic purpura',
+            'pemphigus vulgaris', 'dermatomyositis', 'polymyositis', 'stiff person syndrome',
+            'progressive multifocal leukoencephalopathy', 'creutzfeldt-jakob', 'alport syndrome',
+            'retinitis pigmentosa', 'hereditary angioedema', 'familial mediterranean fever',
+            'moyamoya disease', 'takayasu arteritis', 'polyarteritis nodosa', 'giant cell arteritis',
+            'granulomatosis with polyangiitis', 'anti-glomerular basement membrane disease',
+            'cryoglobulinemia', 'lymphangioleiomyomatosis', 'tuberous sclerosis', 'sturge-weber syndrome',
+            'von hippel-lindau', 'neurofibromatosis', 'pseudoxanthoma elasticum', 'blue rubber bleb nevus syndrome'
+        ]
+        
+        diagnosis_lower = diagnosis.lower()
+        
+        if any(common in diagnosis_lower for common in common_conditions):
+            return 0.8  # High confidence for common conditions
+        elif any(rare in diagnosis_lower for rare in rare_conditions):
+            return 0.4  # Lower confidence for rare conditions
+        else:
+            return 0.6  # Medium confidence for others
+
+    def _assess_diagnosis_quality(self, diagnosis: str) -> float:
+        """Assess the quality of the diagnosis text"""
+        # Check for vague terms that reduce confidence
+        vague_terms = ['possible', 'maybe', 'could be', 'might be', 'uncertain', 'unclear', 'I think', 'I feel', 'probably', 'possibly']
+        has_vague_terms = any(term in diagnosis.lower() for term in vague_terms)
+        
+        # Check for confident language
+        confident_terms = ['definitely', 'certain', 'verified', 'confirmed', 'definitive', 'classic', 'typical', 'characteristic', 'observed']
+        has_confident_terms = any(term in diagnosis.lower() for term in confident_terms)
+        
+        score = 0.7  # Base quality score
+        score -= 0.2 if has_vague_terms else 0
+        score += 0.15 if has_confident_terms else 0
+        
+        return max(0.3, min(1.0, score))
+
+    def _calculate_enhanced_confidence(self, diagnosis_text: str, position: int, temperature: float, 
+                                     total_diagnoses: int, symptoms: str) -> float:
+        """Calculate confidence using multiple medical factors"""
+        
+        # 1. Position factor (exponential decay instead of linear)
+        position_factor = 0.95 ** position  # 0.95, 0.90, 0.86, 0.81, 0.77
+        
+        # 2. Temperature factor (more sophisticated mapping)
+        temp_factor = max(0.6, 1.0 - (temperature * 1.5))
+        
+        # 3. Specificity factor (more specific = higher confidence)
+        specificity_score = self._calculate_diagnosis_specificity(diagnosis_text)
+        
+        # 4. Symptom alignment factor
+        alignment_score = self._calculate_symptom_alignment(diagnosis_text, symptoms)
+        
+        # 5. Medical commonality factor
+        commonality_score = self._get_condition_commonality(diagnosis_text)
+        
+        # 6. Diagnosis quality factor
+        quality_score = self._assess_diagnosis_quality(diagnosis_text)
+        
+        # Weighted combination
+        base_confidence = (
+            position_factor * 0.25 +      # Position weight
+            temp_factor * 0.20 +          # Temperature weight  
+            specificity_score * 0.20 +    # Specificity weight
+            alignment_score * 0.15 +      # Symptom alignment weight
+            commonality_score * 0.10 +    # Commonality weight
+            quality_score * 0.10          # Quality weight
+        )
+        
+        # Apply confidence decay for lower positions
+        if position >= 2:  # 3rd diagnosis onwards
+            base_confidence *= (0.85 ** (position - 1))
+        
+        return max(0.25, min(0.92, base_confidence))
+
+    def _generate_with_confidences_sync(self, prompt: str, max_tokens: int = 512, temperature: float = 0.1) -> str:
+        """Generate diagnoses with enhanced fallback confidence calculation."""
+        if not self.model:
+            raise ValueError("Model not loaded")
+
+        # Modify the prompt to exclude confidence in generation
+        prompt_no_conf = re.sub(r"-\s*confidence.*?<0.0-1.0>", "", prompt, flags=re.IGNORECASE)
+        formatted_prompt = self._format_prompt(prompt_no_conf)
+
+        logger.info("Using blackbox-based confidence calculation (logprobs disabled)")
+        
+        response = self.model(
+            formatted_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=0.7,
+            top_k=15,
+            repeat_penalty=1.02,
+            stop=["<|eot_id|>", "<|end_of_text|>"],
+            echo=False,
+            # logprobs=True, Only for logits_all = True in settings (which uses whitebox method for confidence calculation)
+        )
+
+        if not response or "choices" not in response:
+            logger.warning("Empty response from llama-cpp-python generation")
+            return ""
+
+        raw_text = response["choices"][0]["text"].strip()
+
+        # Find diagnosis lines and apply enhanced confidence calculation
+        diag_pattern = re.compile(r"^\s*-\s*diagnosis\s*:\s*(.+)$", re.IGNORECASE)
+        lines = raw_text.splitlines()
+        diagnosis_indices = [i for i, line in enumerate(lines) if diag_pattern.match(line)]
+
+        # Extract original symptoms from the prompt for alignment calculation
+        symptoms_match = re.search(r"Symptoms:\s*(.+?)(?:\n|$)", prompt_no_conf, re.IGNORECASE)
+        original_symptoms = symptoms_match.group(1) if symptoms_match else ""
+
+        # Apply enhanced confidence calculation to each diagnosis
+        for idx in reversed(range(len(diagnosis_indices))):
+            diag_idx = diagnosis_indices[idx]
+            diagnosis_text = lines[diag_idx].split(":", 1)[1].strip() if ":" in lines[diag_idx] else ""
+            
+            # Calculate enhanced confidence using your sophisticated algorithm
+            enhanced_confidence = self._calculate_enhanced_confidence(
+                diagnosis_text, idx, temperature, len(diagnosis_indices), original_symptoms
+            )
+            
+            # Insert confidence line after diagnosis line
+            lines.insert(diag_idx + 1, f"- confidence: {enhanced_confidence:.3f}")
+
+        return "\n".join(lines)
+    
+    # =============================================================================
+    # PUBLIC API METHODS
+    # =============================================================================
+    
     async def generate_diagnosis(self, symptoms: str) -> str: 
         """High-accuracy diagnosis generation"""
         prompt = f"""Symptoms: {symptoms}
-List 5 most possible diagnoses in this exact format:
+List 5 most possible diagnoses in this exact format ONLY:
 - diagnosis: <name>
-- confidence: <0.0-1.0>
 
 Repeat for each diagnosis."""
-        return await self.run_sync(self._generate_text_sync, prompt, 85, 0.1)  
+        return await self.run_sync(self._generate_with_confidences_sync, prompt, 65, 0.1)
+    
+    async def generate_text_guidance(self, prompt: str, max_tokens: int = 200, temperature: float = 0.2) -> str:
+        """Generate short, focused guidance text - NO additional formatting needed"""
+        
+        # The prompt is already formatted in _generate_dynamic_content, so pass it directly
+        return await self.run_sync(self._generate_text_sync, prompt, max_tokens, temperature)
+    
 
 #     async def generate_followup_questions(self, diagnosis_context: str, average_confidence: float) -> str:
 #         """Generate follow-up questions based on diagnosis context and confidence"""
@@ -200,6 +420,14 @@ Repeat for each diagnosis."""
         
 #         return await self.run_sync(self._generate_text_sync, prompt, 150, 0.1) 
 
+    # education_prompt = f"""Create patient education for {diagnosis}:
+    # WHAT IS IT: [simple definition in 20 words]
+    # CAUSES: [main causes in 15 words]
+    # PROGNOSIS: [typical outlook in 20 words]
+    # SELF-CARE: [practical tips in 25 words]
+
+    # Use simple, non-medical language."""
+
     async def generate_overall_instance1(self, symptoms: str, diagnosis: str, confidence: float) -> str:
         """Generate enhanced analysis for textual-only workflow (Instance 1)"""
         
@@ -211,44 +439,50 @@ Repeat for each diagnosis."""
         
         Based on the confirmed diagnosis above, provide output in this EXACT format:                
         - Severity: <mild/moderate/severe/critical>
-        - User Explanation: <One simple sentence: {diagnosis} definition>
+        - User Explanation: <Simple definition of {diagnosis} and its main causes>
         - Clinical Reasoning: <detailed medical justification based on user's original symptom ({symptoms}) & confirmed diagnosis ({diagnosis})>
         - Specialist: <choose MOST appropriate specialist type (separate with " / " if there is more than one)>
         
-        Keep User Explanation under 25 words. Keep Clinical Reasoning under 50 words and focused on main symptoms only.
+        Keep User Explanation around 50 words. Keep Clinical Reasoning under 60 words and focused on main symptoms only.
         """
         
         return await self.run_sync(self._generate_text_sync, prompt, 400, 0.3)
 
-    async def generate_overall_instance2(self, followup_qna: str, image_diagnosis: str, image_confidence: dict) -> str:
+    async def generate_overall_instance2(self, followup_qna: str, image_diagnosis: str, image_confidence_scores: dict, max_confidence,risk_context: str = "") -> str:
         """Generate analysis for textual + image workflow (Instance 2) - SKIN CANCER SCREENING PATH"""
         
-        #Handle confidence scores properly (they're percentages, not decimals), take the highest confidence
-        max_confidence = max(image_confidence.values()) if image_confidence and len(image_confidence) > 0 else 0.0
-        # Convert to decimal if it's a percentage
-        if max_confidence > 1.0:
-            max_confidence = max_confidence / 100.0
-        
         prompt = f"""
-        COMBINED SKIN ANALYSIS
+    COMPREHENSIVE SKIN LESION ANALYSIS
 
-        Follow-up Screening Information:
-        {followup_qna}
-        
-        Image Analysis Results: {image_diagnosis}
-        Image Confidence: {max_confidence:.2f}
+    PATIENT SCREENING RESPONSES:
+    {followup_qna}
 
-        Integrate the skin cancer screening responses and image analysis findings, 
-        then provide output in this EXACT format:
-        - Severity: <mild/moderate/severe/critical>
-        - User Explanation: <One simple sentence explaining the skin condition>
-        - Clinical Reasoning: <detailed medical justification based on screening responses and image analysis>
-        - Specialist: <choose MOST appropriate specialist type (separate with " / " if there is more than one)>
+    {risk_context}
+
+    IMAGE ANALYSIS RESULTS:
+    - AI Image Diagnosis: {image_diagnosis}
+    - Image Confidence: {max_confidence:.1f}%
+    - All Image Predictions: {dict(sorted(image_confidence_scores.items(), key=lambda x: x[1], reverse=True))}
+
+    INTEGRATION INSTRUCTIONS:
+    Synthesize the ABCDE screening responses, risk assessment, and image analysis to determine the most appropriate diagnosis. Consider:
+    1. Do the ABCDE findings support the image diagnosis?
+    2. Does patient history/symptoms align with image findings?
+    3. Are there any contradictions that need resolution?
+    4. What is the most clinically appropriate diagnosis considering all evidence?
+
+    Provide output in this EXACT format:
+    - Final Diagnosis: <most appropriate diagnosis considering ALL evidence>
+    - Confidence: <0.0-1.0 based on evidence concordance>
+    - Severity: <mild/moderate/severe/critical>
+    - User Explanation: <Explanation of the diagnosed skin condition>
+    - Clinical Reasoning: <detailed justification integrating screening, ABCDE, and image findings>
+    - Specialist: <appropriate specialist>
+
+    Keep explanations under 30 words, reasoning under 80 words.
+    """
         
-        Keep User Explanation under 25 words. Keep Clinical Reasoning under 50 words and focused on skin analysis findings.
-        """
-        
-        return await self.run_sync(self._generate_text_sync, prompt, 500, 0.3)
+        return await self.run_sync(self._generate_text_sync, prompt, 600, 0.3)
 
     async def generate_overall_instance3(self, followup_qna: str, enhanced_diagnosis: str, enhanced_confidence: float) -> str:
         """Generate analysis for textual + follow-up workflow (Instance 3)"""
@@ -267,14 +501,14 @@ Repeat for each diagnosis."""
 
         Based on the confirmed diagnosis above, provide output in this EXACT format:                
         - Severity: <mild/moderate/severe/critical>
-        - User Explanation: <One simple sentence: {diagnosis} definition>
+        - User Explanation: <Simple definition of {diagnosis} and its main causes>
         - Clinical Reasoning: <detailed medical justification based on user's follow-up information & confirmed diagnosis stated above>
         - Specialist: <choose MOST appropriate specialist type (separate with " / " if there is more than one)>
         
-        Keep User Explanation under 25 words. Keep Clinical Reasoning under 50 words and focused on main symptoms only.
+        Keep User Explanation around 50 words. Keep Clinical Reasoning under 60 words and focused on main symptoms only.
         """
         
-        return await self.run_sync(self._generate_text_sync, prompt, 600, 0.3)
+        return await self.run_sync(self._generate_text_sync, prompt, 300, 0.3)
 
     # async def generate_overall_instance4(self, followup_overall: str, followup_diagnosis: Dict, skin_symptoms: str, image_analysis: Dict) -> str:
     #     """Generate comprehensive analysis for all data workflow (Instance 4)"""
@@ -312,8 +546,14 @@ Repeat for each diagnosis."""
         prompt = (
             "Generate a structured, professional medical report:\n"
             f"{report_prompt}\n"
+            "Include sections: Summary, Observations, Recommendations.\n"
+            "Use clinical tone and terminology."
         )
         return await self.run_sync(self._generate_text_sync, prompt, 1024, 0.3)
+    
+    # =============================================================================
+    # PERFORMANCE AND OPTIMIZATION METHODS
+    # =============================================================================
     
     def get_performance_stats(self) -> Dict[str, Any]:
         """Get comprehensive performance statistics for cuBLAS optimization"""

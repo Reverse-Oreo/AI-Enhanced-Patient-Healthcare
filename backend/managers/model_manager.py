@@ -5,7 +5,7 @@ import time
 from typing import Optional, Dict, Any
 from threading import Lock
 
-from adapters.local_model_adapter import LocalModelAdapter
+from adapters.local_model_adapter4 import LocalModelAdapter
 from adapters.skinlesion_efficientNet_adapter import EfficientNetAdapter
 from adapters.embedder_adapter import EmbedderAdapter
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class ModelManager:
     """Singleton model manager to ensure models are loaded only once"""
     
-    _instance: Optional['ModelManager'] = None
+    _instance: 'ModelManager' = None
     _lock = Lock()
     
     def __new__(cls) -> 'ModelManager':

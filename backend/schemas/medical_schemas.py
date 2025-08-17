@@ -115,6 +115,8 @@ class AgentState(TypedDict, total=False):
     followup_qna_overall: str | None # Combined Q&A pairs from follow-up interaction
     followup_diagnosis: list[TextualSymptomAnalysisResult] |  None
     skin_cancer_risk_detected: bool | None # Result of skin cancer risk analysis
+    
+    skin_cancer_risk_metrics: dict[str, Any] | None  # Detailed ABCDE scoring and risk analysis
 
     #STAGE 2: Skin LesionImage Analysis (Optional)
     userInput_skin_symptoms: str | None #Used to store user input of their skin symptoms to be used as a value with skin_lesion_analysis for overall analysis (if image_required is True)

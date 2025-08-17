@@ -141,28 +141,6 @@ export const FollowUpQuestionsPage: React.FC<FollowUpQuestionsPageProps> = ({
       {/* Questions Form */}
       {showForm && (
         <Card>
-          <h3 style={{ 
-            color: 'var(--dark)', 
-            marginBottom: 'var(--spacing-md)',
-            fontSize: '1.3rem'
-          }}>
-            {followupType === 'skin_cancer_screening' ? 
-              '🔍 Skin Cancer Screening Questions' : 
-              '📋 Follow-Up Questions'
-            }
-          </h3>
-          
-          <p style={{ 
-            color: 'var(--secondary)', 
-            marginBottom: 'var(--spacing-lg)',
-            fontSize: '14px'
-          }}>
-            {followupType === 'skin_cancer_screening' ? 
-              'These questions help determine if your skin symptoms require image analysis for potential skin cancer screening. Please answer as accurately as possible.' :
-              'These additional questions will help improve the accuracy of your diagnosis.'
-            }
-          </p>
-          
           {/* Skin Cancer Screening Info */}
           {followupType === 'skin_cancer_screening' && (
             <div style={{ 

@@ -27,8 +27,7 @@ class ImageClassificationNode:
     async def classify_skinLesion(self, state: dict[str, Any]) -> dict[str, Any]:
         image_input = state.get("image_input")
         
-        if not image_input:
-            # No image provided
+        if not image_input:             # No image provided
             state["skin_lesion_analysis"] = {
                 "image_diagnosis": "No image provided",
                 "confidence_score": {}
@@ -58,7 +57,6 @@ class ImageClassificationNode:
             }
             
         except Exception as e:
-            # Handle errors gracefully
             state["skin_lesion_analysis"] = {
                 "image_diagnosis": f"Error analyzing image: {str(e)}",
                 "confidence_score": {}
