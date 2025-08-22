@@ -251,11 +251,11 @@ class MedicalReportNode:
     Confidence: {confidence:.2f}
     Specialist: {specialist}
 
-    Depending on the severity, provide in this EXACT format:
-    IMMEDIATE (24-48h): [specific actions]
+    The patient has NOT yet seen the specialist. provide in this EXACT format:
+    IMMEDIATE (24-48h): [scheduling specialist appointment and urgent self-care]
     SHORT-TERM (1-2 weeks): [monitoring/appointments]
     WATCH FOR: [warning signs]
-    LIFESTYLE: [relevant changes]
+    LIFESTYLE: [safe modifications until specialist consultation]
 
     Keep each section under 30 words."""
     
@@ -566,10 +566,10 @@ Session: {session_id} | Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     def _get_referral_timing(self, severity: str) -> str:
         """Get referral timing based on severity"""
         timing_map = {
-            "critical": "IMMEDIATE - Seek emergency care now",
-            "severe": "URGENT - Within 24-48 hours",
-            "moderate": "PROMPT - Within 1-2 weeks",
-            "mild": "ROUTINE - Within 4-6 weeks or as convenient"
+            "critical": "Immediate - Seek emergency care now",
+            "severe": "Urgent - Within 24-48 hours",
+            "moderate": "Prompt - Within 1-2 weeks",
+            "mild": "Routine - Within 4-6 weeks or as convenient"
         }
         return timing_map.get(severity.lower(), "As recommended by primary care provider")
 
