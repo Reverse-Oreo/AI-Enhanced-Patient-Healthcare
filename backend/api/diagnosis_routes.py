@@ -8,7 +8,7 @@ import logging
 import json
 
 import os
-from nodes import LLMDiagnosisNode, ImageClassificationNode, FollowUpInteractionNode, OverallAnalysisNode, HealthcareRecommendationNode, MedicalReportNode 
+from nodes import LLMDiagnosisNode, ImageClassificationNode, FollowUpInteractionNode, OverallAnalysisNode, MedicalReportNode 
 from schemas.medical_schemas import AgentState
 from managers.websocket_manager import ConnectionManager
 from managers.workflow_state_manager import workflow_state_manager
@@ -27,7 +27,7 @@ llm_diagnosis_node: LLMDiagnosisNode | None = None
 followup_interaction_node: FollowUpInteractionNode | None = None
 image_classification_node: ImageClassificationNode | None = None
 overall_analysis_node: OverallAnalysisNode | None = None
-healthcare_recommendation_node: HealthcareRecommendationNode | None = None
+# healthcare_recommendation_node: HealthcareRecommendationNode | None = None
 medical_report_node: MedicalReportNode | None = None
 
 print("✅ All nodes initialized for API routes!")
@@ -375,64 +375,64 @@ async def run_overall_analysis(
         })
         raise HTTPException(status_code=500, detail=str(e))
 
-#NODE 5: Healthcare Recommendations Endpoint
-@diagnosis_router.post("/patient/healthcare_recommendations")
-async def run_healthcare_recommendations(
-    session_id: str = Form(...),
-    previous_state: str = Form(..., description="JSON of previous AgentState")
-):
-    """Generate healthcare recommendations"""
+# #NODE 5: Healthcare Recommendations Endpoint
+# @diagnosis_router.post("/patient/healthcare_recommendations")
+# async def run_healthcare_recommendations(
+#     session_id: str = Form(...),
+#     previous_state: str = Form(..., description="JSON of previous AgentState")
+# ):
+#     """Generate healthcare recommendations"""
     
-    # Ensure nodes are initialized with loaded models
-    ensure_nodes_initialized()
+#     # Ensure nodes are initialized with loaded models
+#     ensure_nodes_initialized()
     
-    try:
-        import json
-        state = json.loads(previous_state)
+#     try:
+#         import json
+#         state = json.loads(previous_state)
         
-        await manager.send_message(session_id, {
-            "type": "node_started",
-            "node": "healthcare_recommendations",
-            "message": "Finding healthcare recommendations...",
-            "timestamp": datetime.now().isoformat()
-        })
+#         await manager.send_message(session_id, {
+#             "type": "node_started",
+#             "node": "healthcare_recommendations",
+#             "message": "Finding healthcare recommendations...",
+#             "timestamp": datetime.now().isoformat()
+#         })
         
-        # Run the healthcare recommendation node
-        result = await healthcare_recommendation_node(state)
+#         # Run the healthcare recommendation node
+#         result = await healthcare_recommendation_node(state)
         
-        #workflow state manager to set completion stage and determine next step
-        workflow_info = workflow_state_manager.update_workflow_stage_and_determine_next(
-            result, "healthcare_recommendation"
-        )
+#         #workflow state manager to set completion stage and determine next step
+#         workflow_info = workflow_state_manager.update_workflow_stage_and_determine_next(
+#             result, "healthcare_recommendation"
+#         )
 
-        print(f"🔍 After WorkflowStateManager - stage: {result.get('current_workflow_stage')}")
-        print(f"📊 Workflow info: {workflow_info}")
+#         print(f"🔍 After WorkflowStateManager - stage: {result.get('current_workflow_stage')}")
+#         print(f"📊 Workflow info: {workflow_info}")
         
-        update_session_state(session_id, result)
+#         update_session_state(session_id, result)
         
-        await manager.send_message(session_id, {
-            "type": "node_completed",
-            "node": "healthcare_recommendations",
-            "result": result,
-            "workflow_info": workflow_info,
-            "timestamp": datetime.now().isoformat()
-        })
+#         await manager.send_message(session_id, {
+#             "type": "node_completed",
+#             "node": "healthcare_recommendations",
+#             "result": result,
+#             "workflow_info": workflow_info,
+#             "timestamp": datetime.now().isoformat()
+#         })
         
-        return {
-            "success": True,
-            "session_id": session_id,
-            "result": result,
-            "workflow_info": workflow_info,
-        }
+#         return {
+#             "success": True,
+#             "session_id": session_id,
+#             "result": result,
+#             "workflow_info": workflow_info,
+#         }
         
-    except Exception as e:
-        await manager.send_message(session_id, {
-            "type": "node_error",
-            "node": "healthcare_recommendations",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        })
-        raise HTTPException(status_code=500, detail=str(e))
+#     except Exception as e:
+#         await manager.send_message(session_id, {
+#             "type": "node_error",
+#             "node": "healthcare_recommendations",
+#             "error": str(e),
+#             "timestamp": datetime.now().isoformat()
+#         })
+#         raise HTTPException(status_code=500, detail=str(e))
 
 @diagnosis_router.post("/patient/medical_report")
 async def export_medical_report(
