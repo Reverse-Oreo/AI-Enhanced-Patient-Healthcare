@@ -1,5 +1,19 @@
 ## 🚀 **Complete Startup Process**
 
+### **0. Download Required AI Model** (First Time Setup!)
+Before starting the backend, you need to download the required AI model:
+
+**Download from Hugging Face:**
+1. **Direct Download**: Visit https://huggingface.co/mradermacher/Llama-3.1-8B-UltraMedical-GGUF
+   - Click "Download" button to save the file
+
+2. **Place the model file:**
+- Download: `Llama-3.1-8B-UltraMedical.Q8_0.gguf` (8GB+)
+- Place in: `backend/ai_models/Llama-3.1-8B-UltraMedical.Q8_0.gguf`
+
+
+⚠️ **Important**: The backend will NOT start without this model file!
+
 ### **1. Start Backend First** (Required!)
 ```bash
 # Terminal 1 - Backend

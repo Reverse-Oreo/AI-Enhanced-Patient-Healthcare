@@ -1,4 +1,4 @@
-# AI Medical Assistant Web App (In-Progress)
+# AI Medical Assistant Web App
 
 An intelligent medical diagnosis platform powered by LangGraph workflows and local AI models, featuring real-time symptom analysis, image classification, and comprehensive healthcare recommendations.
 
@@ -22,28 +22,13 @@ An intelligent medical diagnosis platform powered by LangGraph workflows and loc
 - **Self-care Guidance**: Personalized health management recommendations
 - **Comprehensive Reports**: Detailed medical analysis summaries
 
-## 🏗️ Architecture
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   React Frontend │◄──►│   FastAPI Backend │◄──►│  Local AI Models │
-│   (TypeScript)   │    │   (Python)       │    │  (GGUF/PyTorch) │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-    ┌────▼────┐             ┌────▼────┐             ┌────▼────┐
-    │ Pages & │             │LangGraph│             │ Llama   │
-    │UI Logic │             │Workflow │             │BioMistral│
-    └─────────┘             └─────────┘             │EfficNet │
-                                                    └─────────┘
-```
-
 ## 🚀 Quick Start
-
 ### Prerequisites
 - **Python 3.8+** with pip
 - **Node.js 16+** with npm
-- **Git** for version control
+- **Git** with Git LFS for version control and model downloads
 - **4GB+ RAM** for local AI models
+- **Hugging Face account** (optional but recommended for model downloads)
 
 ### 1. Clone & Setup
 ```bash
@@ -57,17 +42,36 @@ cd backend
 
 # Install Python dependencies
 pip install -r requirements.txt
+```
+### 3. Model Configuration
 
-# Download AI models (or use your own)
-# Place models in backend/ai_models/ directory:
-# - Llama-3.1-8B-UltraMedical.Q8_0.gguf
-# - skin_lesion_efficientnetb0.pth
+**Required AI Models:**
+The application requires the following AI models to function properly:
 
-# Start backend server
+1) **Main Language Model**: `Llama-3.1-8B-UltraMedical.Q8_0.gguf`
+   - **Source**: Hugging Face - https://huggingface.co/mradermacher/Llama-3.1-8B-UltraMedical-GGUF
+   - **How to Get**: Direct download from HF
+
+2) **Embedding Model**: `sentence-transformers/all-MiniLM-L6-v2`
+   - **Note**: Downloaded automatically via Python when first used
+
+3) **Image Classification Model**:
+- skin_lesion_efficientnetb0.pth (should be included within the folder, else download model, phase2_best.pth within the google drive https://drive.google.com/file/d/15LBP6awUDjMOQFftsVC1GxA6kpi-4Yj0/view?usp=sharing)
+
+**After Downloading:**
+Place the following models within
+```bash
+backend/ai_models/Llama-3.1-8B-UltraMedical.Q8_0.gguf
+```
+
+### 4. Start both end servers
+
+#### - Backend Setup
+```bash
 python main.py
 ```
 
-### 3. Frontend Setup
+#### - Frontend Setup
 ```bash
 cd my-app
 
@@ -78,10 +82,11 @@ npm install
 npm start
 ```
 
-### 4. Access Application
+### - Access Application
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
+
 
 ## 📂 Project Structure
 
@@ -116,48 +121,6 @@ AI-Medical-Assistant-Web-App/
 └── README.md                     # This file
 ```
 
-## 🔧 Configuration
-
-### Environment Variables
-Create `backend/.env`:
-```env
-# Hugging Face API Token (optional)
-hf_api="your_hugging_face_token"
-
-# Google Maps API Key (for specialist recommendations)
-google_maps_api="your_google_maps_key"
-```
-
-### Model Configuration
-Update model paths in `backend/graphs/patient_workflow.py`:
-```python
-multipurpose_model_path = "ai_models/Llama-3.1-8B-UltraMedical.Q8_0.gguf"
-embedding_model_name = "sentence-transformers/all-MiniLM-L6-v2"
-```
-
-## 🎯 Usage Examples
-
-### 1. Textual Symptom Analysis
-```bash
-curl -X POST "http://localhost:8000/patient/textual_analysis" \
-     -F "user_symptoms=I have a headache and feel dizzy" \
-     -F "session_id=session_123"
-```
-
-### 2. Image Classification
-```bash
-curl -X POST "http://localhost:8000/patient/image_analysis" \
-     -F "image=@skin_lesion.jpg" \
-     -F "session_id=session_123"
-```
-
-### 3. Follow-up Questions
-```bash
-curl -X POST "http://localhost:8000/patient/followup_questions" \
-     -H "Content-Type: application/json" \
-     -d '{"responses": {"How long have you had these symptoms?": "3 days"}}'
-```
-
 ## 🔄 Workflow Stages
 
 The application follows a sophisticated multi-stage workflow:
@@ -166,8 +129,7 @@ The application follows a sophisticated multi-stage workflow:
 2. **Follow-up Questions** → Dynamic clarification (optional)
 3. **Image Analysis** → Medical image classification (optional)
 4. **Overall Analysis** → Comprehensive data synthesis
-5. **Healthcare Recommendations** → Specialist referrals & guidance
-6. **Medical Report** → Final comprehensive summary
+5. **Medical Report** → Final comprehensive summary
 
 ## 🛠️ Development
 
@@ -194,8 +156,7 @@ The application follows a sophisticated multi-stage workflow:
 ### Backend Tests
 ```bash
 cd backend
-python test_script1.py        # Local model testing
-python test_endpoint.py       # API endpoint testing
+python quick_test.py        # Local model testing
 python hf_api_test.py         # Hugging Face integration
 ```
 
@@ -217,7 +178,7 @@ npm run build                 # Production build test
 ./start-local-test.sh
 ```
 
-### Docker Deployment
+<!-- ### Docker Deployment
 ```bash
 cd 4_deployment/docker
 docker-compose up -d
@@ -227,7 +188,7 @@ docker-compose up -d
 ```bash
 cd 4_deployment/kubernetes
 kubectl apply -f medical-ai-deployment.yaml
-```
+``` -->
 
 ## 📊 Performance & Resources
 
