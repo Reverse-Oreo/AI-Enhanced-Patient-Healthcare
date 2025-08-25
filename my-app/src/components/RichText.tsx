@@ -1,4 +1,3 @@
-// components/RichText.tsx
 import React, { PropsWithChildren } from 'react';
 import styled from 'styled-components';
 

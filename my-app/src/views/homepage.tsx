@@ -51,11 +51,10 @@ const Homepage: React.FC = () => {
   const navigate = useNavigate();
 
   const handleChatbotClick = () => {
-    // For now, we'll navigate to a placeholder or show an alert
-    // You can update this when you implement the chatbot page
+    // For now, it will navigate to a placeholder or show an alert
+    // This will be updated when implemented the chatbot page
     alert('🤖 Chatbot feature coming soon!\n\nThis will provide interactive medical assistance and answer your health questions.');
     
-    // Uncomment this when you create the chatbot page
     // navigate('/chatbot');
   };
 

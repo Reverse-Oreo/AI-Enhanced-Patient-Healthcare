@@ -31,7 +31,7 @@ export class ApiService {
       formData.append('user_symptoms', request.symptoms);
       formData.append('session_id', sessionId);
       
-// ENHANCED: Comprehensive debug logging
+//Comprehensive debug logging
       const fullUrl = `${API_BASE_URL}/patient/textual_analysis`;
       console.log('🔍 DETAILED API CALL DEBUG:');
       console.log('  Full URL:', fullUrl);

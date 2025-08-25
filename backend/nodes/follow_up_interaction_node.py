@@ -3,7 +3,7 @@ from adapters.local_model_adapter4 import LocalModelAdapter
 from typing import Dict, Any, List
 import re
 
-#responses contain both qna pairs, the parsing is used to combine initial user input and structured qna 
+#followup_response contain both qna pairs, the parsing is used to combine initial user input and structured qna 
 #for context later (followup_qna_overall)
 
 class FollowUpInteractionNode:

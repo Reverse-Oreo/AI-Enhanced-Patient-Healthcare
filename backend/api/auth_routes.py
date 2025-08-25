@@ -214,7 +214,7 @@ def logout_user(response: Response):
     return {"message": "Logout successful"}
 
 # --- Dependency to get current user from cookie ---
-def get_current_user(request: Request):  # Removed async
+def get_current_user(request: Request):  #Removed async
     """Get user data directly from JWT cookie instead of calling Supabase"""
     token = request.cookies.get("access_token")
     if not token:
@@ -275,7 +275,7 @@ async def update_profile(profile_data: UserUpdate, request: Request, response: R
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     
     try:
-        # FIXED: Update user profile in database
+        #Update user profile in database
         updated_profile_data = {
             "id": user["id"],
             "name": profile_data.name,
@@ -291,7 +291,7 @@ async def update_profile(profile_data: UserUpdate, request: Request, response: R
         if not result.data:
             raise Exception("Failed to update profile in database")
         
-        # FIXED: Update the cookie with new data including email
+        #Update the cookie with new data including email
         updated_user_data = {
             "id": user["id"],
             "email": profile_data.email,  # Email might be updated
@@ -304,7 +304,7 @@ async def update_profile(profile_data: UserUpdate, request: Request, response: R
         if profile_data.email != user["email"]:
             try:
                 # Note: Updating email in Supabase Auth requires the user to be authenticated
-                # This is a simplified version - in production you'd need proper email verification
+                # Sso this is a simplified version. If in production, need proper email verification
                 print(f"⚠️ Email update requested but not implemented: {user['email']} -> {profile_data.email}")
                 # For now, keep the original email
                 updated_user_data["email"] = user["email"]

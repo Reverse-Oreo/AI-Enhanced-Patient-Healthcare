@@ -65,11 +65,11 @@ class ModelManager:
                 logger.info("📦 Creating LLM model adapter...")
                 self.local_adapter = LocalModelAdapter(llm_path=self.multipurpose_model_path)
                 
-                # 🔧 CHANGE: Only load LLM model initially
+                #Only load LLM model initially
                 logger.info("⏳ Loading LLM model...")
                 await self._load_llm_model()
                 
-                # 🔧 NEW: Create other adapters but don't load them yet
+                #Create other adapters but don't load them yet
                 logger.info("📦 Creating skin and embedding adapters (not loading yet)...")
                 self.efficientnet_adapter = EfficientNetAdapter(model_path=self.skin_model_path)
                 self.embedder_adapter = EmbedderAdapter(model_name=self.embedding_model_name)

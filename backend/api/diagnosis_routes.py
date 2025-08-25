@@ -549,7 +549,7 @@ async def debug_routes():
         ]
     }
 
-# Enhanced diagnostic endpoint with WebSocket integration
+# **Unused - Enhanced diagnostic endpoint with WebSocket integration
 @diagnosis_router.post("/patient/diagnose_patient_realtime")
 async def diagnose_patient_realtime(
     user_symptoms: str = Form(..., description="Symptoms provided by the patient"),

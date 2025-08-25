@@ -22,7 +22,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
 
       // Debug: Check if cookies exist
-      console.log("🍪 Document cookies:", document.cookie);
+      console.log("🍪Document cookies:", document.cookie);
 
       const userData = await AuthService.getProfile();
       console.log("✅ Auth check: User is logged in", userData);

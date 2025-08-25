@@ -1,4 +1,3 @@
-// components/medical/ImageUploadForm.tsx
 import React, { useState } from 'react';
 import { Button } from 'components/common/Button';
 

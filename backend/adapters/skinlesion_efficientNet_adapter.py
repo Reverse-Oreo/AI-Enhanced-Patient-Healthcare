@@ -23,23 +23,23 @@ class EfficientNetAdapter:
         
         # Define skin lesion classes
         self.classes = [
-            'Melanocytic nevi',
-            'Melanoma', 
-            'Benign keratosis-like lesions',
-            'Basal cell carcinoma',
-            'Actinic keratoses',
-            'Vascular lesions',
-            'Dermatofibroma'
+            'Actinic keratoses (akiec)',
+            'Basal cell carcinoma (bcc)', 
+            'Benign keratosis-like lesions (bkl)',
+            'Dermatofibroma (df)',
+            'Melanoma (mel)',
+            'Melanocytic nevi (nv)',
+            'Vascular lesions (vasc)'
         ]
         
         self.class_labels = {
-            0: 'Melanocytic nevi (nv)',
-            1: 'Melanoma (mel)', 
+            0: 'Actinic keratoses (akiec)',
+            1: 'Basal cell carcinoma (bcc)', 
             2: 'Benign keratosis-like lesions (bkl)',
-            3: 'Basal cell carcinoma (bcc)',
-            4: 'Actinic keratoses (akiec)',
-            5: 'Vascular lesions (vasc)',
-            6: 'Dermatofibroma (df)'
+            3: 'Dermatofibroma (df)',
+            4: 'Melanoma (mel)',
+            5: 'Melanocytic nevi (nv)',
+            6: 'Vascular lesions (vasc)'
         }
     
     async def load_model(self):
@@ -50,23 +50,11 @@ class EfficientNetAdapter:
             
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             
-            # Check if model file exists, if not create a simple model for testing
-            if not os.path.exists(self.model_path):
-                logger.warning(f"⚠️ Model file not found: {self.model_path}")
-                logger.info("Creating simple model for development")
-                # Create a simple model structure for testing
-                self.model = torch.nn.Sequential(
-                    torch.nn.Flatten(),
-                    torch.nn.Linear(224*224*3, 128),
-                    torch.nn.ReLU(),
-                    torch.nn.Linear(128, len(self.classes))
-                )
-            else:
-                # Load real model
-                self.model = timm.create_model('efficientnet_b0', num_classes=len(self.classes))
-                checkpoint = torch.load(self.model_path, map_location=self.device)
-                self.model.load_state_dict(checkpoint["model_state_dict"])
-            
+            # Load real model
+            self.model = timm.create_model('efficientnet_b0', num_classes=len(self.classes))
+            checkpoint = torch.load(self.model_path, map_location=self.device)
+            self.model.load_state_dict(checkpoint["model_state_dict"])
+        
             self.model.to(self.device)
             self.model.eval()
             

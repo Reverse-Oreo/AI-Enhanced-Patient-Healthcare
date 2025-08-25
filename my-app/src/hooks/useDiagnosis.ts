@@ -301,7 +301,7 @@ export const useDiagnosis = () => {
     }
   }, [runOverallAnalysis, runMedicalReport]);
 
-  // ✅ AUTO-PROGRESSION: Continue to next recommended node
+  //AUTO-PROGRESSION: Continue to next recommended node
   const continueWorkflow = useCallback(async () => {
     console.log('🔄 continueWorkflow called');
     

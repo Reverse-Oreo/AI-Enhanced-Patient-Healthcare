@@ -283,7 +283,6 @@ class MedicalReportNode:
         
         # Analysis type from workflow
         analysis_type = self._get_analysis_type_display(workflow_path, state)
-        evidence_summary = self._create_evidence_summary(state)
         
         # Get alternative diagnoses
         alternative_diagnoses = self._get_alternative_diagnoses(state)
@@ -324,13 +323,6 @@ class MedicalReportNode:
 
     ALTERNATIVE DIAGNOSES:
     {alternative_diagnoses}
-
-    DIAGNOSTIC CONFIDENCE:
-    Based on the available evidence, this diagnosis has a confidence level of {(confidence * 100):.1f}%. 
-    {self._get_confidence_interpretation(confidence)}
-
-    EVIDENCE REVIEWED:
-    {evidence_summary}
 
 ═══════════════════════════════════════════════════════════════════
         FOLLOW-UP GUIDANCE
@@ -572,42 +564,6 @@ Session: {session_id} | Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             "mild": "Routine - Within 4-6 weeks or as convenient"
         }
         return timing_map.get(severity.lower(), "As recommended by primary care provider")
-
-    def _create_evidence_summary(self, state: Dict[str, Any]) -> str:
-        """Create concise evidence summary from accumulated state"""
-        
-        evidence_parts = []
-        
-        # Symptom analysis
-        if state.get("textual_analysis"):
-            textual_count = len(state["textual_analysis"])
-            avg_confidence = state.get("average_confidence", 0)
-            evidence_parts.append(f"• Symptom Analysis: {textual_count} diagnoses considered (avg confidence: {avg_confidence:.1%})")
-        
-        # Follow-up enhancement
-        if state.get("followup_response"):
-            followup_count = len(state["followup_response"])
-            evidence_parts.append(f"• Enhanced Assessment: {followup_count} follow-up questions answered")
-
-        # Skin cancer risk assessment
-        if state.get("skin_cancer_risk_metrics"):
-            risk_metrics = state["skin_cancer_risk_metrics"]
-            core_score = risk_metrics.get("core_score", 0)
-            risk_level = risk_metrics.get("risk_level", "unknown")
-            evidence_parts.append(f"• ABCDE Risk Assessment: {core_score:.1f}/9.0 core score ({risk_level} risk)")
-            
-        # Image analysis
-        if state.get("skin_lesion_analysis"):
-            image_diagnosis = state["skin_lesion_analysis"].get("image_diagnosis", "Unknown")
-            evidence_parts.append(f"• Visual Analysis: {image_diagnosis} identified through image assessment")
-        
-        # Overall analysis
-        overall = state.get("overall_analysis", {})
-        if overall:
-            final_confidence = overall.get("final_confidence", 0)
-            evidence_parts.append(f"• Final Assessment: {final_confidence:.1%} diagnostic confidence")
-        
-        return "\n".join(evidence_parts) if evidence_parts else "• Standard symptom analysis completed"
 
     def _get_analysis_duration(self, state: Dict[str, Any]) -> str:
         """Get analysis duration if available"""

@@ -1,4 +1,3 @@
-// components/medical/DiagnosisResults.tsx
 import React from 'react';
 import { TextualSymptomAnalysisResult } from 'types/medical';
 import { Card } from 'components/common/Card';
@@ -28,11 +27,11 @@ export const DiagnosisResults: React.FC<DiagnosisResultsProps> = ({
   hideFollowUpMessage = false
 }) => {
   const getButtonVariant = (): 'success' | 'primary' | 'danger' | 'secondary' => {
-    return 'success'; // ✅ Always green for all continue buttons
+    return 'success'; //Always green for all continue buttons
   };
 
   const getNextStepInfo = () => {
-    // ✅ If context is followup_complete, skip confidence check and show correct next step
+    //If context is followup_complete, skip confidence check and show correct next step
     if (context === 'followup_complete' || context === 'enhanced') {
       if (imageRequired) {
         return {
@@ -49,7 +48,7 @@ export const DiagnosisResults: React.FC<DiagnosisResultsProps> = ({
       }
     }
 
-    // ✅ Original logic for initial analysis
+    //Original logic for initial analysis
     if (averageConfidence < 0.75 && !hideFollowUpMessage) {
       return {
         message: '📝 Follow-up questions needed to improve accuracy',
