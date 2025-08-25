@@ -11,7 +11,7 @@ from api.diagnosis_routes import diagnosis_router
 from api.auth_routes import router as auth_router
 from managers.websocket_manager import ConnectionManager
 from managers.model_manager import model_manager #Global variable to initiallize models here in main.py and carry over to diagnosis_routes.py for model usage
-from nodes import LLMDiagnosisNode, ImageClassificationNode, FollowUpInteractionNode, OverallAnalysisNode, HealthcareRecommendationNode, MedicalReportNode 
+from nodes import LLMDiagnosisNode, ImageClassificationNode, FollowUpInteractionNode, OverallAnalysisNode, MedicalReportNode 
 from contextlib import asynccontextmanager
 
 load_dotenv()
