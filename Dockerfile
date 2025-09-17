@@ -20,7 +20,7 @@ ARG ENABLE_GPU=false
 RUN if [ "$ENABLE_GPU" = "true" ]; then \
     pip install --no-cache-dir -r requirements.txt; \
     else \
-    grep -v "llama-cpp-python\[cublas\]" requirements.txt > requirements_cpu.txt && \
+    grep -v "llama-cpp-python\\\[cublas\\\]" requirements.txt > requirements_cpu.txt && \
     echo "llama-cpp-python" >> requirements_cpu.txt && \
     pip install --no-cache-dir -r requirements_cpu.txt; \
     fi
