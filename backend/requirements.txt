@@ -16,7 +16,7 @@ sentence-transformers
 scikit-learn
 scipy
 numpy<2.0  # NumPy 1.x for compatibility
-google-maps-services
+googlemaps
 reportlab==4.0.4      # PDF generation
 python-docx==1.1.0    # Word document generation
 
