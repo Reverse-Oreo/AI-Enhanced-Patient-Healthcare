@@ -19,12 +19,11 @@ numpy<2.0  # NumPy 1.x for compatibility
 googlemaps
 reportlab==4.0.4      # PDF generation
 python-docx==1.1.0    # Word document generation
-
-ray
-timm
-reportlab
-python-docx
-python-multipart
-supabase
-pydantic[email]
-uvicorn
+psutil                # System and process utilities
+ray                   # Distributed computing framework
+timm                  # PyTorch Image Models (EfficientNet)
+supabase              # Supabase client
+pyjwt                 # JWT tokens
+huggingface-hub       # HuggingFace model hub
+typing-extensions     # Extended typing support
+python-multipart      # FastAPI form data handling
