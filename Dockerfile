@@ -1,16 +1,15 @@
 # Frontend-only build for testing
-FROM node:22-alpine AS frontend-build
+FROM node:22-alpine
 WORKDIR /app/frontend
 COPY my-app/package*.json ./
 RUN npm install
 COPY my-app/ ./
 RUN npm run build
 
-# Serve frontend with nginx
-FROM nginx:alpine
-COPY --from=frontend-build /app/frontend/build /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+# Serve with Node.js serve package
+RUN npm install -g serve
+EXPOSE 3000
+CMD ["serve", "-s", "build", "-l", "3000"]
 
 # TODO: Uncomment below for full stack build after frontend testing
 # FROM python:3.12-slim AS python-builder
