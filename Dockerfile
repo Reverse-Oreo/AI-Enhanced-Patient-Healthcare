@@ -16,7 +16,14 @@ RUN apt-get update && apt-get install -y \
 
 # Install Python dependencies
 COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+ARG ENABLE_GPU=false
+RUN if [ "$ENABLE_GPU" = "true" ]; then \
+    pip install --no-cache-dir -r requirements.txt; \
+    else \
+    grep -v "llama-cpp-python\[cublas\]" requirements.txt > requirements_cpu.txt && \
+    echo "llama-cpp-python" >> requirements_cpu.txt && \
+    pip install --no-cache-dir -r requirements_cpu.txt; \
+    fi
 
 FROM python:3.12-slim
 WORKDIR /app
