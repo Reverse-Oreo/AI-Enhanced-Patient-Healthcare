@@ -8,8 +8,6 @@ import HeroIllustration from 'components/homepage/HeroIllustration';
 import OverTitle from 'components/homepage/OverTitle';
 import { media } from 'utils/media';
 
-
-
 export default function Hero() {
   const navigate = useNavigate();
 
@@ -80,18 +78,33 @@ const Description = styled.p`
 `;
 
 const CustomOverTitle = styled(OverTitle)`
-  margin-bottom: 2rem;
-`;
+  display: block;
+  margin: 0 0 12px;
 
-const Heading = styled.h1`
-  font-size: 7.2rem;
-  font-weight: bold;
-  line-height: 1.1;
-  margin-bottom: 4rem;
-  letter-spacing: -0.03em;
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+  text-indent: 0 !important;
+  position: static;
+  transform: none;
 
-  ${media('<=tablet')} {
-    font-size: 4.6rem;
-    margin-bottom: 2rem;
+  line-height: 1.25;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: clamp(13px, 1.4vw, 18px);
+
+  &::before,
+  &::after {
+    content: none !important;
+    display: none !important;
   }
 `;
+
+
+const Heading = styled.h1`
+  font-size: clamp(32px, 7vw, 112px);  
+  font-weight: 800;
+  line-height: 1.08;
+  margin: 0 0 24px;                   
+  letter-spacing: -0.02em;
+`;
+
