@@ -55,7 +55,7 @@ jobs:
       - name: Build and tag Docker images
         run: |
           echo "Building frontend image..."
-          docker build -t $ECR_REPOSITORY_FRONTEND:latest ./frontend
+          docker build -f Dockerfile.frontend -t $ECR_REPOSITORY_FRONTEND:latest .
 
           # echo "Building backend image..."
           # docker build -t $ECR_REPOSITORY_BACKEND:latest ./backend
