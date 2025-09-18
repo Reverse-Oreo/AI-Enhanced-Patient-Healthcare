@@ -1,0 +1,158 @@
+name: Test AWS ECS/ECR with LocalStack
+
+on:
+  push:
+    branches: ["cicd"]
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: "000000000000"
+  ECR_REPOSITORY_FRONTEND: patient-healthcare-frontend
+  ECR_REPOSITORY_BACKEND: patient-healthcare-backend
+  ECS_CLUSTER: test-cluster
+  ECS_SERVICE: test-service
+
+permissions:
+  contents: read
+
+jobs:
+  test-localstack:
+    runs-on: ubuntu-latest
+    environment: localstack
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Start LocalStack
+        uses: LocalStack/setup-localstack@v0.2.3
+        with:
+          image-tag: 'latest'
+          install-awslocal: 'true'
+          use-pro: 'true'
+          configuration: |
+            DEBUG=1
+            SERVICES=ecr,ecs,logs
+            DOCKER_HOST=unix:///var/run/docker.sock
+        env:
+          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
+
+      - name: Wait for LocalStack to be ready
+        run: |
+          echo "Waiting for LocalStack to start..."
+          timeout 60 bash -c 'until awslocal sts get-caller-identity; do sleep 2; done'
+          echo "LocalStack is ready!"
+
+      - name: Create ECR repositories
+        run: |
+          echo "Creating ECR repositories..."
+          awslocal ecr create-repository --repository-name $ECR_REPOSITORY_FRONTEND --region $AWS_REGION || true
+          # awslocal ecr create-repository --repository-name $ECR_REPOSITORY_BACKEND --region $AWS_REGION || true
+
+          echo "Listing ECR repositories:"
+          awslocal ecr describe-repositories --region $AWS_REGION
+
+      - name: Build and tag Docker images
+        run: |
+          echo "Building frontend image..."
+          docker build -t $ECR_REPOSITORY_FRONTEND:latest ./frontend
+
+          # echo "Building backend image..."
+          # docker build -t $ECR_REPOSITORY_BACKEND:latest ./backend
+
+          echo "Tagging images for LocalStack ECR..."
+          docker tag $ECR_REPOSITORY_FRONTEND:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.localhost.localstack.cloud:4566/$ECR_REPOSITORY_FRONTEND:latest
+          # docker tag $ECR_REPOSITORY_BACKEND:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.localhost.localstack.cloud:4566/$ECR_REPOSITORY_BACKEND:latest
+
+      - name: Push images to LocalStack ECR
+        run: |
+          echo "Getting ECR login token..."
+          awslocal ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.localhost.localstack.cloud:4566
+
+          echo "Pushing frontend image..."
+          docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.localhost.localstack.cloud:4566/$ECR_REPOSITORY_FRONTEND:latest
+
+          # echo "Pushing backend image..."
+          # docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.localhost.localstack.cloud:4566/$ECR_REPOSITORY_BACKEND:latest
+
+          echo "Verifying images in ECR:"
+          awslocal ecr list-images --repository-name $ECR_REPOSITORY_FRONTEND --region $AWS_REGION
+          # awslocal ecr list-images --repository-name $ECR_REPOSITORY_BACKEND --region $AWS_REGION
+
+      - name: Create ECS cluster
+        run: |
+          echo "Creating ECS cluster..."
+          awslocal ecs create-cluster --cluster-name $ECS_CLUSTER --region $AWS_REGION
+
+          echo "Listing ECS clusters:"
+          awslocal ecs list-clusters --region $AWS_REGION
+
+      - name: Create task definition
+        run: |
+          echo "Creating task definition..."
+          cat > task-definition.json << EOF
+          {
+            "family": "test-task",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "256",
+            "memory": "512",
+            "executionRoleArn": "arn:aws:iam::$AWS_ACCOUNT_ID:role/ecsTaskExecutionRole",
+            "containerDefinitions": [
+              {
+                "name": "frontend",
+                "image": "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.localhost.localstack.cloud:4566/$ECR_REPOSITORY_FRONTEND:latest",
+                "portMappings": [
+                  {
+                    "containerPort": 3000,
+                    "protocol": "tcp"
+                  }
+                ],
+                "essential": true,
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "/ecs/test-task",
+                    "awslogs-region": "$AWS_REGION",
+                    "awslogs-stream-prefix": "ecs"
+                  }
+                }
+              }
+            ]
+          }
+          EOF
+
+          echo "Registering task definition..."
+          awslocal ecs register-task-definition --cli-input-json file://task-definition.json --region $AWS_REGION
+
+      - name: Create CloudWatch log group
+        run: |
+          echo "Creating CloudWatch log group..."
+          awslocal logs create-log-group --log-group-name "/ecs/test-task" --region $AWS_REGION || true
+
+      - name: Test task execution
+        run: |
+          echo "Running task to test deployment..."
+          TASK_ARN=$(awslocal ecs run-task \
+            --cluster $ECS_CLUSTER \
+            --task-definition test-task \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[subnet-12345],assignPublicIp=ENABLED}" \
+            --region $AWS_REGION \
+            --query 'tasks[0].taskArn' --output text)
+
+          echo "Task ARN: $TASK_ARN"
+
+          echo "Waiting for task to start..."
+          sleep 10
+
+          echo "Checking task status:"
+          awslocal ecs describe-tasks --cluster $ECS_CLUSTER --tasks $TASK_ARN --region $AWS_REGION
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "Cleaning up resources..."
+          awslocal ecs list-tasks --cluster $ECS_CLUSTER --region $AWS_REGION --query 'taskArns[]' --output text | xargs -r -I {} awslocal ecs stop-task --cluster $ECS_CLUSTER --task {} --region $AWS_REGION || true
+          awslocal ecs delete-cluster --cluster $ECS_CLUSTER --region $AWS_REGION || true
+          echo "Cleanup completed"  
