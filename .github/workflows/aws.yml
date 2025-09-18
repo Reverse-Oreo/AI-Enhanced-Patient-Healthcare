@@ -31,22 +31,22 @@ on:
     branches: [ "main", "cicd" ]
 
 env:
-  AWS_REGION: MY_AWS_REGION                   # set this to your preferred AWS region, e.g. us-west-1
-  ECR_REPOSITORY: MY_ECR_REPOSITORY           # set this to your Amazon ECR repository name
-  ECS_SERVICE: MY_ECS_SERVICE                 # set this to your Amazon ECS service name
-  ECS_CLUSTER: MY_ECS_CLUSTER                 # set this to your Amazon ECS cluster name
-  ECS_TASK_DEFINITION: MY_ECS_TASK_DEFINITION # set this to the path to your Amazon ECS task definition
-                                               # file, e.g. .aws/task-definition.json
-  CONTAINER_NAME: MY_CONTAINER_NAME           # set this to the name of the container in the
-                                               # containerDefinitions section of your task definition
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY_FRONTEND: ${{ secrets.ECR_REPOSITORY_FRONTEND }}
+  ECR_REPOSITORY_BACKEND: ${{ secrets.ECR_REPOSITORY_BACKEND }}
+  ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
+  ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
+  ECS_TASK_DEFINITION: ${{ secrets.ECS_TASK_DEFINITION }}
+  FRONTEND_CONTAINER_NAME: ${{ secrets.FRONTEND_CONTAINER_NAME }}
+  BACKEND_CONTAINER_NAME: ${{ secrets.BACKEND_CONTAINER_NAME }}
 
 permissions:
   contents: read
 
 jobs:
 
-  action-build-test:
-    name: Actions Runner
+  build-and-test:
+    name: Build and Test Services
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -55,76 +55,89 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Build image locally
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        tags: app:test
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        load: true
+    - name: Build frontend with compose
+      run: docker compose build
 
-    - name: Test container starts
-      run: docker run --rm -d --name test-app -p 8000:8000 app:test
+    - name: Start frontend service
+      run: docker compose up -d
 
-    - name: Wait for app to start
+    - name: Wait for frontend to be ready
       run: sleep 10
 
-    - name: Test FastAPI health endpoint
+    - name: Test frontend
       run: |
-        curl -f http://localhost:8000/health || echo "Health endpoint not ready yet"
-        docker logs test-app
+        docker compose logs frontend
+        curl -f http://localhost:3000 || echo "Frontend not ready"
 
-    - name: Stop test container
-      run: docker stop test-app
+    - name: Cleanup
+      run: docker compose down
 
 
   # deploy:
-  #   name: Deploy
+  #   name: Deploy to ECS
   #   runs-on: ubuntu-latest
   #   environment: production
-  #   needs: local-build-test
-
+  #   needs: build-and-test
+  #
   #   steps:
   #   - name: Checkout
   #     uses: actions/checkout@v4
-
+  #
   #   - name: Configure AWS credentials
   #     uses: aws-actions/configure-aws-credentials@v1
   #     with:
   #       aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
   #       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   #       aws-region: ${{ env.AWS_REGION }}
-
+  #
   #   - name: Login to Amazon ECR
   #     id: login-ecr
   #     uses: aws-actions/amazon-ecr-login@v1
-
-  #   - name: Build, tag, and push image to Amazon ECR
-  #     id: build-image
+  #
+  #   # Build and push frontend
+  #   - name: Build and push frontend image
+  #     id: build-frontend
   #     env:
   #       ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
   #       IMAGE_TAG: ${{ github.sha }}
   #     run: |
-  #       # Build a docker container and
-  #       # push it to ECR so that it can
-  #       # be deployed to ECS.
-  #       docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-  #       docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-  #       echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-
-  #   - name: Fill in the new image ID in the Amazon ECS task definition
-  #     id: task-def
+  #       docker build -f Dockerfile.frontend -t $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG .
+  #       docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG
+  #       echo "frontend_image=$ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG" >> $GITHUB_OUTPUT
+  #
+  #   # Build and push backend
+  #   - name: Build and push backend image
+  #     id: build-backend
+  #     env:
+  #       ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+  #       IMAGE_TAG: ${{ github.sha }}
+  #     run: |
+  #       docker build -f Dockerfile.backend -t $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG .
+  #       docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG
+  #       echo "backend_image=$ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG" >> $GITHUB_OUTPUT
+  #
+  #   # Update task definition with both images
+  #   - name: Update frontend container in task definition
+  #     id: task-def-frontend
   #     uses: aws-actions/amazon-ecs-render-task-definition@v1
   #     with:
   #       task-definition: ${{ env.ECS_TASK_DEFINITION }}
-  #       container-name: ${{ env.CONTAINER_NAME }}
-  #       image: ${{ steps.build-image.outputs.image }}
-
-  #   - name: Deploy Amazon ECS task definition
+  #       container-name: ${{ env.FRONTEND_CONTAINER_NAME }}
+  #       image: ${{ steps.build-frontend.outputs.frontend_image }}
+  #
+  #   - name: Update backend container in task definition
+  #     id: task-def-backend
+  #     uses: aws-actions/amazon-ecs-render-task-definition@v1
+  #     with:
+  #       task-definition: ${{ steps.task-def-frontend.outputs.task-definition }}
+  #       container-name: ${{ env.BACKEND_CONTAINER_NAME }}
+  #       image: ${{ steps.build-backend.outputs.backend_image }}
+  #
+  #   # Deploy to ECS
+  #   - name: Deploy to Amazon ECS
   #     uses: aws-actions/amazon-ecs-deploy-task-definition@v1
   #     with:
-  #       task-definition: ${{ steps.task-def.outputs.task-definition }}
+  #       task-definition: ${{ steps.task-def-backend.outputs.task-definition }}
   #       service: ${{ env.ECS_SERVICE }}
   #       cluster: ${{ env.ECS_CLUSTER }}
   #       wait-for-service-stability: true
