@@ -79,16 +79,17 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
   
-    # Debug ECR variables
+    # Debug ECR variables (unmask for debugging)
     - name: Debug ECR Variables
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        echo "ECR_REGISTRY: $ECR_REGISTRY"
-        echo "ECR_REPOSITORY_FRONTEND: $ECR_REPOSITORY_FRONTEND"
-        echo "IMAGE_TAG: $IMAGE_TAG"
-        echo "Full image URI: $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG"
+        echo "ECR_REGISTRY length: ${#ECR_REGISTRY}"
+        echo "ECR_REPOSITORY_FRONTEND length: ${#ECR_REPOSITORY_FRONTEND}"
+        echo "Repository name first 5 chars: ${ECR_REPOSITORY_FRONTEND:0:5}"
+        echo "Repository name last 5 chars: ${ECR_REPOSITORY_FRONTEND: -5}"
+        echo "Does repo contain slash? $(echo $ECR_REPOSITORY_FRONTEND | grep -c '/' || echo 'no')"
 
     # Build and push frontend image to private ECR
     - name: Build and push frontend image
