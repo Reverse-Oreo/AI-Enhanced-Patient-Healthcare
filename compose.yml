@@ -7,8 +7,6 @@ services:
         - FRONTEND_PORT=${FRONTEND_PORT}
     ports:
       - "${FRONTEND_HOST_PORT}:${FRONTEND_PORT}"
-    env_file:
-      - .env.local
     environment:
       - REACT_APP_API_URL=${REACT_APP_API_URL}
       - REACT_APP_WS_URL=${REACT_APP_WS_URL}
