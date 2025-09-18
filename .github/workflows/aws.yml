@@ -79,6 +79,17 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
   
+    # Debug ECR variables
+    - name: Debug ECR Variables
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        echo "ECR_REGISTRY: $ECR_REGISTRY"
+        echo "ECR_REPOSITORY_FRONTEND: $ECR_REPOSITORY_FRONTEND"
+        echo "IMAGE_TAG: $IMAGE_TAG"
+        echo "Full image URI: $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG"
+
     # Build and push frontend image to private ECR
     - name: Build and push frontend image
       id: build-frontend
