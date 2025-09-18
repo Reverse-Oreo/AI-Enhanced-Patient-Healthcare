@@ -8,12 +8,9 @@ aiofiles
 langchain
 langgraph
 pydantic
-llama-cpp-python[cublas]  # GPU-enabled version for NVIDIA GPUs
 transformers
 torch
 torchvision
-sentence-transformers
-scikit-learn
 scipy
 numpy<2.0  # NumPy 1.x for compatibility
 googlemaps
@@ -24,6 +21,5 @@ ray                   # Distributed computing framework
 timm                  # PyTorch Image Models (EfficientNet)
 supabase              # Supabase client
 pyjwt                 # JWT tokens
-huggingface-hub       # HuggingFace model hub
 typing-extensions     # Extended typing support
 python-multipart      # FastAPI form data handling
