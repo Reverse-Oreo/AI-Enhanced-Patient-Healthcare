@@ -75,23 +75,20 @@ jobs:
         role-session-name: GitHubActions-Frontend-Deploy
         role-skip-session-tagging: true
   
-    - name: Login to Amazon ECR Public
+    - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
-      with:
-        registry-type: public
-      env:
-        AWS_DEFAULT_REGION: us-east-1
   
-    # Build and push frontend image to public ECR
+    # Build and push frontend image to private ECR
     - name: Build and push frontend image
       id: build-frontend
       env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        docker build -f Dockerfile.frontend -t public.ecr.aws/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG .
-        docker push public.ecr.aws/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG
-        echo "frontend_image=public.ecr.aws/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        docker build -f Dockerfile.frontend -t $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG
+        echo "frontend_image=$ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
     # Update task definition with frontend image
     - name: Update frontend container in task definition
