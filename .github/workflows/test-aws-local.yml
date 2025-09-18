@@ -79,6 +79,33 @@ jobs:
           awslocal ecr list-images --repository-name $ECR_REPOSITORY_FRONTEND --region $AWS_REGION
           # awslocal ecr list-images --repository-name $ECR_REPOSITORY_BACKEND --region $AWS_REGION
 
+      - name: Create VPC and networking
+        run: |
+          echo "Creating VPC..."
+          VPC_ID=$(awslocal ec2 create-vpc --cidr-block 10.0.0.0/16 --region $AWS_REGION --query 'Vpc.VpcId' --output text)
+          echo "VPC ID: $VPC_ID"
+
+          echo "Creating Internet Gateway..."
+          IGW_ID=$(awslocal ec2 create-internet-gateway --region $AWS_REGION --query 'InternetGateway.InternetGatewayId' --output text)
+          awslocal ec2 attach-internet-gateway --vpc-id $VPC_ID --internet-gateway-id $IGW_ID --region $AWS_REGION
+
+          echo "Creating public subnet..."
+          SUBNET_ID=$(awslocal ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.1.0/24 --availability-zone us-east-1a --region $AWS_REGION --query 'Subnet.SubnetId' --output text)
+          echo "Subnet ID: $SUBNET_ID"
+
+          echo "Creating route table..."
+          RT_ID=$(awslocal ec2 create-route-table --vpc-id $VPC_ID --region $AWS_REGION --query 'RouteTable.RouteTableId' --output text)
+          awslocal ec2 create-route --route-table-id $RT_ID --destination-cidr-block 0.0.0.0/0 --gateway-id $IGW_ID --region $AWS_REGION
+          awslocal ec2 associate-route-table --subnet-id $SUBNET_ID --route-table-id $RT_ID --region $AWS_REGION
+
+          echo "Creating security group..."
+          SG_ID=$(awslocal ec2 create-security-group --group-name test-sg --description "Test security group" --vpc-id $VPC_ID --region $AWS_REGION --query 'GroupId' --output text)
+          awslocal ec2 authorize-security-group-ingress --group-id $SG_ID --protocol tcp --port 3000 --cidr 0.0.0.0/0 --region $AWS_REGION
+
+          echo "Exporting network IDs..."
+          echo "SUBNET_ID=$SUBNET_ID" >> $GITHUB_ENV
+          echo "SECURITY_GROUP_ID=$SG_ID" >> $GITHUB_ENV
+
       - name: Create ECS cluster
         run: |
           echo "Creating ECS cluster..."
@@ -137,7 +164,7 @@ jobs:
             --cluster $ECS_CLUSTER \
             --task-definition test-task \
             --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[subnet-12345],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNET_ID],securityGroups=[$SECURITY_GROUP_ID],assignPublicIp=ENABLED}" \
             --region $AWS_REGION \
             --query 'tasks[0].taskArn' --output text)
 
