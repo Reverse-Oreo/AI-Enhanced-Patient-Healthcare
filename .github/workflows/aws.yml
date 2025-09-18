@@ -73,6 +73,7 @@ jobs:
         role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
         aws-region: ${{ env.AWS_REGION }}
         role-session-name: GitHubActions-Frontend-Deploy
+        role-skip-session-tagging: true
   
     - name: Login to Amazon ECR
       id: login-ecr
