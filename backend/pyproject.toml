@@ -1,0 +1,30 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.116.2",
+    "httpx>=0.28.1",
+    "langgraph>=0.6.7",
+    "llama-cpp-python>=0.3.16",
+    "numpy<2.0",
+    "pillow>=11.3.0",
+    "psutil>=7.1.0",
+    "pydantic-ai>=1.0.9",
+    "pydantic[email]>=2.11.9",
+    "pyjwt>=2.10.1",
+    "python-docx==1.1.0",
+    "python-dotenv>=1.1.1",
+    "python-multipart>=0.0.20",
+    "ray>=2.49.1",
+    "reportlab==4.0.4",
+    "scipy>=1.16.2",
+    "supabase>=2.19.0",
+    "timm>=1.0.19",
+    "torch>=2.8.0",
+    "torchvision>=0.23.0",
+    "transformers>=4.56.1",
+    "typing-extensions>=4.15.0",
+    "uvicorn>=0.35.0",
+]

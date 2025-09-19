@@ -1,19 +1,15 @@
 fastapi
 uvicorn
 python-dotenv
-requests
 pillow
-asyncio
-aiofiles
-langchain
 langgraph
 pydantic
 transformers
 torch
 torchvision
 scipy
+llama-cpp-python
 numpy<2.0  # NumPy 1.x for compatibility
-googlemaps
 reportlab==4.0.4      # PDF generation
 python-docx==1.1.0    # Word document generation
 psutil                # System and process utilities
@@ -23,3 +19,6 @@ supabase              # Supabase client
 pyjwt                 # JWT tokens
 typing-extensions     # Extended typing support
 python-multipart      # FastAPI form data handling
+pydantic[email]
+httpx
+pydantic_ai

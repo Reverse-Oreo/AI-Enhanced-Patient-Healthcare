@@ -1,10 +1,6 @@
 services:
   frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-      args:
-        - FRONTEND_PORT=${FRONTEND_PORT}
+    image: leonardhd/ai-healthcare-frontend:latest
     ports:
       - "${FRONTEND_HOST_PORT}:${FRONTEND_PORT}"
     environment:

@@ -24,13 +24,10 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+    - name: Pull frontend image from Docker Hub
+      run: docker pull leonardhd/ai-healthcare-frontend:latest
 
-    - name: Build frontend with compose
-      run: docker compose build
-
-    - name: Start frontend service
+    - name: Start services
       run: docker compose up -d
 
     - name: Wait for frontend to be ready
