@@ -18,6 +18,8 @@ jobs:
       REACT_APP_WS_URL: ${{ secrets.REACT_APP_WS_URL }}
       REACT_APP_ENVIRONMENT: ${{ secrets.REACT_APP_ENVIRONMENT }}
       REACT_APP_URL: ${{ secrets.REACT_APP_URL }}
+      REACT_APP_BYPASS_AUTH: ${{ secrets.REACT_APP_BYPASS_AUTH }}
+      REACT_APP_BYPASS_ROLE: ${{ secrets.REACT_APP_BYPASS_ROLE }}
       FRONTEND_PORT: ${{ secrets.FRONTEND_PORT }}
       FRONTEND_HOST_PORT: ${{ secrets.FRONTEND_HOST_PORT }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -83,7 +85,7 @@ jobs:
         docker compose exec -T frontend sh -c "printenv | grep REACT_APP_API_URL" || echo "Frontend env vars not set"
 
         # Simulate frontend calling backend (from container perspective)
-        docker compose exec -T frontend sh -c "wget --spider --quiet \$REACT_APP_API_URL/health" || echo "Frontend cannot reach backend via env var URL"
+        docker compose exec -T frontend sh -c "curl -f \$REACT_APP_API_URL/health" || echo "Frontend cannot reach backend via env var URL"
 
     - name: Show logs for debugging
       if: failure()
