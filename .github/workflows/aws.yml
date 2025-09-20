@@ -1,92 +1,144 @@
-# This workflow will build and push a new container image to Amazon ECR,
+# This workflow will build and push the frontend container image to Amazon ECR,
 # and then will deploy a new task definition to Amazon ECS, when there is a push to the "main" branch.
+#
+# SECURITY: Uses OIDC authentication instead of long-lived access keys
 #
 # To use this workflow, you will need to complete the following set-up steps:
 #
-# 1. Create an ECR repository to store your images.
-#    For example: `aws ecr create-repository --repository-name my-ecr-repo --region us-east-2`.
-#    Replace the value of the `ECR_REPOSITORY` environment variable in the workflow below with your repository's name.
-#    Replace the value of the `AWS_REGION` environment variable in the workflow below with your repository's region.
+# 1. Create an ECR repository for frontend images:
+#    aws ecr create-repository --repository-name your-frontend-repo --region us-east-1
 #
-# 2. Create an ECS task definition, an ECS cluster, and an ECS service.
-#    For example, follow the Getting Started guide on the ECS console:
-#      https://us-east-2.console.aws.amazon.com/ecs/home?region=us-east-2#/firstRun
-#    Replace the value of the `ECS_SERVICE` environment variable in the workflow below with the name you set for the Amazon ECS service.
-#    Replace the value of the `ECS_CLUSTER` environment variable in the workflow below with the name you set for the cluster.
+# 2. Create an ECS task definition, cluster, and service:
+#    Follow the Getting Started guide: https://console.aws.amazon.com/ecs/home#/firstRun
 #
-# 3. Store your ECS task definition as a JSON file in your repository.
-#    The format should follow the output of `aws ecs register-task-definition --generate-cli-skeleton`.
-#    Replace the value of the `ECS_TASK_DEFINITION` environment variable in the workflow below with the path to the JSON file.
-#    Replace the value of the `CONTAINER_NAME` environment variable in the workflow below with the name of the container
-#    in the `containerDefinitions` section of the task definition.
+# 3. Set up OIDC Identity Provider in AWS IAM:
+#    - Provider URL: https://token.actions.githubusercontent.com
+#    - Audience: sts.amazonaws.com
 #
-# 4. Store an IAM user access key in GitHub Actions secrets named `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
-#    See the documentation for each action used below for the recommended IAM policies for this IAM user,
-#    and best practices on handling the access key credentials.
+# 4. Create IAM role with trust policy for this repository:
+#    - Role name: github-actions-ecs-role
+#    - Trust policy: Allow GitHub OIDC for this specific repo
+#    - Permissions: ECR push, ECS deploy
+#
+# 5. Add these GitHub Secrets:
+#    - AWS_REGION: Your AWS region (e.g., us-east-1)
+#    - AWS_ROLE_ARN: ARN of the IAM role created in step 4
+#    - ECR_REPOSITORY_FRONTEND: Frontend ECR repository name
+#    - ECS_CLUSTER: ECS cluster name
+#    - ECS_SERVICE: ECS service name
+#    - ECS_TASK_DEFINITION: Path to task definition JSON
+#    - FRONTEND_CONTAINER_NAME: Container name in task definition
 
 name: Deploy to Amazon ECS
 
 on:
-  pull_request:
-    branches: [ "main" ]
+  push:
+    branches: [ "cicd" ]
 
 env:
-  AWS_REGION: MY_AWS_REGION                   # set this to your preferred AWS region, e.g. us-west-1
-  ECR_REPOSITORY: MY_ECR_REPOSITORY           # set this to your Amazon ECR repository name
-  ECS_SERVICE: MY_ECS_SERVICE                 # set this to your Amazon ECS service name
-  ECS_CLUSTER: MY_ECS_CLUSTER                 # set this to your Amazon ECS cluster name
-  ECS_TASK_DEFINITION: MY_ECS_TASK_DEFINITION # set this to the path to your Amazon ECS task definition
-                                               # file, e.g. .aws/task-definition.json
-  CONTAINER_NAME: MY_CONTAINER_NAME           # set this to the name of the container in the
-                                               # containerDefinitions section of your task definition
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY_FRONTEND: ${{ secrets.ECR_REPOSITORY_FRONTEND }}
+  ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
+  ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
+  ECS_TASK_DEFINITION: ${{ secrets.ECS_TASK_DEFINITION }}
+  FRONTEND_CONTAINER_NAME: ${{ secrets.FRONTEND_CONTAINER_NAME }}
 
 permissions:
+  id-token: write   # Required for OIDC authentication
   contents: read
 
 jobs:
-  deploy:
-    name: Deploy
-    runs-on: ubuntu-latest
-    environment: production
 
+  deploy:
+    name: Deploy to ECS
+    runs-on: ubuntu-latest
+    environment: test-prod
+  
     steps:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+    - name: Debug OIDC Token
+      run: |
+        echo "Repository: ${{ github.repository }}"
+        echo "Ref: ${{ github.ref }}"
+        echo "SHA: ${{ github.sha }}"
+        echo "Actor: ${{ github.actor }}"
+        echo "Workflow: ${{ github.workflow }}"
+        echo "Job: ${{ github.job }}"
 
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v5
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: ${{ env.AWS_REGION }}
+        role-session-name: GitHubActions-Frontend-Deploy
+        role-skip-session-tagging: true
+  
     - name: Login to Amazon ECR
       id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
+      uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Build, tag, and push image to Amazon ECR
-      id: build-image
+    # Pull from Docker Hub and push to ECR
+    - name: Pull and push frontend image
+      id: build-frontend
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: ${{ github.sha }}
+        DOCKERHUB_FRONTEND: ${{ secrets.DOCKERHUB_FRONTEND }}
       run: |
-        # Build a docker container and
-        # push it to ECR so that it can
-        # be deployed to ECS.
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        # Pull from Docker Hub
+        docker pull $DOCKERHUB_FRONTEND
 
-    - name: Fill in the new image ID in the Amazon ECS task definition
+        # Tag for ECR
+        docker tag $DOCKERHUB_IMAGE $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG
+        docker tag $DOCKERHUB_IMAGE $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest
+
+        # Push to ECR
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest
+
+        echo "frontend_image=$ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    # Pull and push backend image
+    - name: Pull and push backend image
+      id: build-backend
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+        DOCKERHUB_BACKEND: ${{ secrets.DOCKERHUB_BACKEND }}
+      run: |
+        # Pull from Docker Hub
+        docker pull $DOCKERHUB_BACKEND
+
+        # Tag for ECR (assuming ECR_REPOSITORY_BACKEND secret exists)
+        docker tag $DOCKERHUB_BACKEND $ECR_REGISTRY/${{ secrets.ECR_REPOSITORY_BACKEND }}:$IMAGE_TAG
+        docker tag $DOCKERHUB_BACKEND $ECR_REGISTRY/${{ secrets.ECR_REPOSITORY_BACKEND }}:latest
+
+        # Push to ECR
+        docker push $ECR_REGISTRY/${{ secrets.ECR_REPOSITORY_BACKEND }}:$IMAGE_TAG
+        docker push $ECR_REGISTRY/${{ secrets.ECR_REPOSITORY_BACKEND }}:latest
+
+        echo "backend_image=$ECR_REGISTRY/${{ secrets.ECR_REPOSITORY_BACKEND }}:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    # Download current task definition from AWS
+    - name: Download task definition
+      run: |
+        aws ecs describe-task-definition --task-definition $ECS_TASK_DEFINITION \
+          --query taskDefinition > task-definition.json
+
+    # Update task definition with frontend image
+    - name: Update frontend container in task definition
       id: task-def
       uses: aws-actions/amazon-ecs-render-task-definition@v1
       with:
-        task-definition: ${{ env.ECS_TASK_DEFINITION }}
-        container-name: ${{ env.CONTAINER_NAME }}
-        image: ${{ steps.build-image.outputs.image }}
+        task-definition: task-definition.json
+        container-name: ${{ env.FRONTEND_CONTAINER_NAME }}
+        image: ${{ steps.build-frontend.outputs.frontend_image }}
 
-    - name: Deploy Amazon ECS task definition
-      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+    # Deploy to ECS
+    - name: Deploy to Amazon ECS
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v2
       with:
         task-definition: ${{ steps.task-def.outputs.task-definition }}
         service: ${{ env.ECS_SERVICE }}
