@@ -85,7 +85,7 @@ jobs:
         docker compose exec -T frontend sh -c "printenv | grep REACT_APP_API_URL" || echo "Frontend env vars not set"
 
         # Simulate frontend calling backend (from container perspective)
-        docker compose exec -T frontend sh -c "curl -f \$REACT_APP_API_URL/health" || echo "Frontend cannot reach backend via env var URL"
+        docker compose exec -T frontend sh -c "curl -f $REACT_APP_API_URL/health" || echo "Frontend cannot reach backend via env var URL"
 
     - name: Show logs for debugging
       if: failure()
