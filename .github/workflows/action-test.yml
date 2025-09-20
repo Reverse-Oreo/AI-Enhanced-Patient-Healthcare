@@ -39,8 +39,14 @@ jobs:
     - name: Start services
       run: docker compose up -d
 
-    - name: Wait for frontend to be ready
-      run: sleep 10
+    - name: Wait for services to be ready
+      run: |
+        echo "Waiting for backend to start up (models loading)..."
+        # Wait up to 30 seconds for backend health check
+        timeout 30s bash -c 'until curl -f http://localhost:${{ secrets.API_PORT }}/health; do echo "Waiting for backend..."; sleep 5; done' || echo "Backend startup timeout"
+
+        echo "Waiting for frontend..."
+        sleep 10
 
     - name: Test frontend
       run: |
@@ -82,13 +88,22 @@ jobs:
     - name: Show logs for debugging
       if: failure()
       run: |
+        echo "=== Backend startup logs ==="
+        docker compose logs backend | head -50
         echo "=== Frontend logs ==="
-        docker compose logs frontend
-        echo "=== Backend logs ==="
-        docker compose logs backend
+        docker compose logs frontend | head -30
+        echo "=== Container status ==="
+        docker compose ps
         echo "=== Docker network info ==="
         docker network ls
         docker network inspect ai-enhanced-patient-healthcare_ai-healthcare-network || true
+
+    - name: Check backend container status
+      run: |
+        echo "=== Backend container health ==="
+        docker compose ps backend
+        echo "=== Backend logs (last 20 lines) ==="
+        docker compose logs --tail=20 backend
 
     - name: Cleanup
       run: docker compose down
