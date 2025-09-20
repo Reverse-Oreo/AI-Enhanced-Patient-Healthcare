@@ -1,5 +1,5 @@
 from ray import state
-from adapters.local_model_adapter4 import LocalModelAdapter
+from adapters.bedrock_model_adapter import BedrockModelAdapter
 from typing import Dict, Any, List
 import re
 
@@ -7,7 +7,7 @@ import re
 #for context later (followup_qna_overall)
 
 class FollowUpInteractionNode:
-    def __init__(self, adapter: LocalModelAdapter):
+    def __init__(self, adapter: BedrockModelAdapter):
         self.adapter = adapter
         
     async def __call__(self, state):

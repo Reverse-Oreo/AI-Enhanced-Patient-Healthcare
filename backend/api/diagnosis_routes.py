@@ -60,14 +60,14 @@ def initialize_nodes_once():
         raise RuntimeError("Models not loaded. Cannot initialize nodes.")
     
     print("🔧 Initializing nodes with loaded models...")
-    
-    # Get local adapter (always available)
-    local_adapter = model_manager.get_local_adapter()
-    
-    llm_diagnosis_node = LLMDiagnosisNode(adapter=local_adapter)
-    followup_interaction_node = FollowUpInteractionNode(adapter=local_adapter)
-    overall_analysis_node = OverallAnalysisNode(adapter=local_adapter)
-    medical_report_node = MedicalReportNode(adapter=local_adapter)
+
+    # Get BedRock adapter (always available)
+    bedrock_adapter = model_manager.get_bedrock_adapter()
+
+    llm_diagnosis_node = LLMDiagnosisNode(adapter=bedrock_adapter)
+    followup_interaction_node = FollowUpInteractionNode(adapter=bedrock_adapter)
+    overall_analysis_node = OverallAnalysisNode(adapter=bedrock_adapter)
+    medical_report_node = MedicalReportNode(adapter=bedrock_adapter)
 
     #Image classification node set to none as it will be loaded on demand
     image_classification_node = None
@@ -78,10 +78,14 @@ def ensure_nodes_initialized():
     if not model_manager.is_loaded():
         raise HTTPException(status_code=503, detail="Models not loaded yet. Please wait for startup to complete.")
     
-    # 🔧 FIX: Nodes should already be initialized at startup
+    #Initialize nodes if they're not already initialized
     if llm_diagnosis_node is None:
-        raise HTTPException(status_code=500, detail="Nodes not initialized. Internal server error.")
-
+        try:
+            initialize_nodes_once()
+        except Exception as e:
+            logger.error(f"Failed to initialize nodes: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to initialize nodes: {e}")
+        
 async def get_image_classification_node():
     "create image classification node separately for on-demand model loading"
     global image_classification_node
@@ -112,7 +116,14 @@ async def run_textual_analysis(
     """Run LLM textual analysis on symptoms"""
     
     # Ensure nodes are initialized with loaded models
-    # ensure_nodes_initialized()
+    ensure_nodes_initialized()
+    
+   # 🔧 DEBUG: Add post-check
+    print(f"🔍 Post-check - LLM node is None: {llm_diagnosis_node is None}")
+    print(f"🔍 LLM node type: {type(llm_diagnosis_node)}")
+    
+    if llm_diagnosis_node is None:
+        raise HTTPException(status_code=500, detail="LLM diagnosis node failed to initialize")
     
     if not session_id:
         session_id = f"session_{uuid.uuid4().hex[:8]}"

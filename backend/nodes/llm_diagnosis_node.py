@@ -1,16 +1,19 @@
 from typing import TypedDict, Tuple
 import re
-from adapters.local_model_adapter4 import LocalModelAdapter
+from adapters.bedrock_model_adapter import BedrockModelAdapter  
 from schemas.medical_schemas import TextualSymptomAnalysisResult
 
 def parse_diagnosis_details(raw_response: str) -> list[TextualSymptomAnalysisResult]:
     results: list[TextualSymptomAnalysisResult] = []
     
+    print(f"🔍 DEBUG: Raw response from Bedrock:")
+    print(f"Response: '{raw_response[:500]}...'")  # First 500 chars for debugging
+    print(f"Response length: {len(raw_response)}")
+    
     # --- Extract Each Diagnosis Block ---
     diagnosis_pattern = re.compile(
         r"-\s*Diagnosis:\s*(.*?)\s*"
         r"-\s*Confidence:\s*([0-9.]+)\s*",
-
         re.IGNORECASE | re.DOTALL
     )
 
@@ -27,7 +30,7 @@ def parse_diagnosis_details(raw_response: str) -> list[TextualSymptomAnalysisRes
     return results
 
 class LLMDiagnosisNode:
-    def __init__(self, adapter: LocalModelAdapter):
+    def __init__(self, adapter: BedrockModelAdapter):  # FIXED: Type hint
         self.adapter = adapter 
     
     async def __call__(self, state:dict) -> dict:
@@ -90,7 +93,7 @@ class LLMDiagnosisNode:
             state["userInput_symptoms"] = text # Store user input (non-skin symptoms) to be used later with textual_analysis for overall analysis
             state["requires_skin_cancer_screening"] = False
 
-            # Get Q8 model for diagnosis
+            # Get Bedrock model for diagnosis
             output = await self.adapter.generate_diagnosis(text)
             
             #parse multiple diagnoses

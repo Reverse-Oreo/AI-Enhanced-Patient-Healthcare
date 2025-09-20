@@ -1,4 +1,4 @@
-from adapters.local_model_adapter4 import LocalModelAdapter
+from adapters.bedrock_model_adapter import BedrockModelAdapter
 from typing import Dict, Any, Optional, List
 import json
 from datetime import datetime
@@ -22,7 +22,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 class MedicalReportNode:
-    def __init__(self, adapter: LocalModelAdapter, supabase_client: Optional[Client] = None):
+    def __init__(self, adapter: BedrockModelAdapter, supabase_client: Optional[Client] = None):
         self.adapter = adapter
         
         # Initialize Supabase client for database operations

@@ -61,8 +61,8 @@ class WorkflowInfo(TypedDict, total=False):
 
 #Minimal schema on purpose during early stages to enable lazy loading for performance(without reasoning/severity)
 class TextualSymptomAnalysisResult(TypedDict):
-    text_diagnosis: str
-    diagnosis_confidence: float
+    text_diagnosis: str | None
+    diagnosis_confidence: float | None  # Confidence score between 0 and 1
     
 class SkinLesionImageAnalysisResult(TypedDict):
     image_diagnosis: str | None

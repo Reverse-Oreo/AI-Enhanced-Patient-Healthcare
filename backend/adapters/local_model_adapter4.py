@@ -318,7 +318,7 @@ class LocalModelAdapter(ModelInterface):
         
         return max(0.25, min(0.92, base_confidence))
 
-    def _generate_with_confidences_sync(self, prompt: str, max_tokens: int = 512, temperature: float = 0.1) -> str:
+    def _generate_with_confidences_sync(self, prompt: str, max_tokens: int = 65, temperature: float = 0.1) -> str:
         """Generate diagnoses with enhanced fallback confidence calculation."""
         if not self.model:
             raise ValueError("Model not loaded")
