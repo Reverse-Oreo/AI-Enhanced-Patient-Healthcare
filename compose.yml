@@ -1,6 +1,6 @@
 services:
   frontend:
-    image: leonardhd/ai-healthcare-frontend:latest
+    image: ${DOCKERHUB_FRONTEND}
     ports:
       - "${FRONTEND_HOST_PORT}:${FRONTEND_PORT}"
     environment:
@@ -8,8 +8,30 @@ services:
       - REACT_APP_WS_URL=${REACT_APP_WS_URL}
       - REACT_APP_ENVIRONMENT=${REACT_APP_ENVIRONMENT}
       - REACT_APP_URL=${REACT_APP_URL}
+    networks:
+      - ai-healthcare-network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${FRONTEND_PORT}"]
       interval: 30s
       timeout: 3s
       retries: 3
+
+  backend:
+    image: ${DOCKERHUB_BACKEND}
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_API_KEY=${SUPABASE_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+    ports:
+      - "${API_PORT}:${API_PORT}"
+    networks:
+      - ai-healthcare-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+networks:
+  ai-healthcare-network:
+    driver: bridge

@@ -20,12 +20,21 @@ jobs:
       REACT_APP_URL: ${{ secrets.REACT_APP_URL }}
       FRONTEND_PORT: ${{ secrets.FRONTEND_PORT }}
       FRONTEND_HOST_PORT: ${{ secrets.FRONTEND_HOST_PORT }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_API_KEY: ${{ secrets.SUPABASE_API_KEY }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      API_PORT: ${{ secrets.API_PORT }}
+      DOCKERHUB_FRONTEND: ${{ secrets.DOCKERHUB_FRONTEND }}
+      DOCKERHUB_BACKEND: ${{ secrets.DOCKERHUB_BACKEND }}
     steps:
     - name: Checkout
       uses: actions/checkout@v4
 
     - name: Pull frontend image from Docker Hub
-      run: docker pull leonardhd/ai-healthcare-frontend:latest
+      run: docker pull ${{ secrets.DOCKERHUB_FRONTEND }}
+
+    - name: Pull backend image from Docker Hub
+      run: docker pull ${{ secrets.DOCKERHUB_BACKEND }}
 
     - name: Start services
       run: docker compose up -d

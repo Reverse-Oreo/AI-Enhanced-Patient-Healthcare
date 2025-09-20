@@ -78,29 +78,48 @@ jobs:
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
-  
-    # Debug ECR variables (unmask for debugging)
-    - name: Debug ECR Variables
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG: ${{ github.sha }}
-      run: |
-        echo "ECR_REGISTRY length: ${#ECR_REGISTRY}"
-        echo "ECR_REPOSITORY_FRONTEND length: ${#ECR_REPOSITORY_FRONTEND}"
-        echo "Repository name first 5 chars: ${ECR_REPOSITORY_FRONTEND:0:5}"
-        echo "Repository name last 5 chars: ${ECR_REPOSITORY_FRONTEND: -5}"
-        echo "Does repo contain slash? $(echo $ECR_REPOSITORY_FRONTEND | grep -c '/' || echo 'no')"
 
-    # Build and push frontend image to private ECR
-    - name: Build and push frontend image
+    # Pull from Docker Hub and push to ECR
+    - name: Pull and push frontend image
       id: build-frontend
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: ${{ github.sha }}
+        DOCKERHUB_FRONTEND: ${{ secrets.DOCKERHUB_FRONTEND }}
       run: |
-        docker build -f Dockerfile.frontend -t $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG .
+        # Pull from Docker Hub
+        docker pull $DOCKERHUB_FRONTEND
+
+        # Tag for ECR
+        docker tag $DOCKERHUB_IMAGE $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG
+        docker tag $DOCKERHUB_IMAGE $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest
+
+        # Push to ECR
         docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest
+
         echo "frontend_image=$ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    # Pull and push backend image
+    - name: Pull and push backend image
+      id: build-backend
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+        DOCKERHUB_BACKEND: ${{ secrets.DOCKERHUB_BACKEND }}
+      run: |
+        # Pull from Docker Hub
+        docker pull $DOCKERHUB_BACKEND
+
+        # Tag for ECR (assuming ECR_REPOSITORY_BACKEND secret exists)
+        docker tag $DOCKERHUB_BACKEND $ECR_REGISTRY/${{ secrets.ECR_REPOSITORY_BACKEND }}:$IMAGE_TAG
+        docker tag $DOCKERHUB_BACKEND $ECR_REGISTRY/${{ secrets.ECR_REPOSITORY_BACKEND }}:latest
+
+        # Push to ECR
+        docker push $ECR_REGISTRY/${{ secrets.ECR_REPOSITORY_BACKEND }}:$IMAGE_TAG
+        docker push $ECR_REGISTRY/${{ secrets.ECR_REPOSITORY_BACKEND }}:latest
+
+        echo "backend_image=$ECR_REGISTRY/${{ secrets.ECR_REPOSITORY_BACKEND }}:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
     # Download current task definition from AWS
     - name: Download task definition
