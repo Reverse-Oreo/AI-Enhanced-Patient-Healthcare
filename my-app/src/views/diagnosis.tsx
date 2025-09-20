@@ -5,6 +5,7 @@ import { useDiagnosis } from 'hooks/useDiagnosis';
 import Navbar from 'components/homepage/Navbar';
 import { useAuth } from 'contexts/AuthContext';
 
+const BYPASS_AUTH = process.env.REACT_APP_BYPASS_AUTH === "true";
 
 const DiagnosisFunction: React.FC = () => {
   const { loggedIn } = useAuth();
@@ -108,7 +109,7 @@ const handleImageSubmit = async (image: File) => {
 
   return (
     <>
-      <Navbar loggedIn={loggedIn} />
+    <Navbar />
       
       <div className="App" style={{ minHeight: '100vh', position: 'relative', paddingTop: '31px' }}>
 

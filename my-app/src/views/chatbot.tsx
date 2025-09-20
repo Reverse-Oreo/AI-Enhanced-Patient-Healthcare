@@ -113,7 +113,7 @@ const ChatbotPage: React.FC = () => {
   if (!loggedIn) {
     return (
       <>
-        <Navbar loggedIn={false} />
+        <Navbar />
         <ChatbotWrapper>
           <Card>
             <div style={{ textAlign: 'center', padding: '2rem' }}>
@@ -135,7 +135,7 @@ const ChatbotPage: React.FC = () => {
 
   return (
     <>
-      <Navbar loggedIn={loggedIn} />
+      <Navbar />
       <ChatbotWrapper>
         <ChatbotHeader>
           <h1>🤖 Medical Chatbot</h1>

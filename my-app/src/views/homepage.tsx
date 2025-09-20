@@ -57,7 +57,7 @@ export default function Homepage(): React.JSX.Element {
         <meta name="description" content="Unified data, risk alerts, and personalized insights for patients and clinicians." />
       </Helmet>
 
-      <Navbar role={role} onRoleChange={setAndSaveRole} />
+      <Navbar />
 
       <Page>
         {/* HERO */}
