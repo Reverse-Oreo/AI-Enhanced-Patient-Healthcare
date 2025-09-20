@@ -8,6 +8,8 @@ services:
       - REACT_APP_WS_URL=${REACT_APP_WS_URL}
       - REACT_APP_ENVIRONMENT=${REACT_APP_ENVIRONMENT}
       - REACT_APP_URL=${REACT_APP_URL}
+      - REACT_APP_BYPASS_AUTH=${REACT_APP_BYPASS_AUTH}
+      - REACT_APP_BYPASS_ROLE=${REACT_APP_BYPASS_ROLE}
     networks:
       - ai-healthcare-network
     healthcheck:
