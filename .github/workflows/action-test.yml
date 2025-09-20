@@ -45,7 +45,50 @@ jobs:
     - name: Test frontend
       run: |
         docker compose logs frontend
-        curl -f http://localhost:3000 || echo "Frontend not ready"
+        curl -f http://localhost:${{ secrets.FRONTEND_HOST_PORT }} || echo "Frontend not ready"
+
+    - name: Test backend accessibility
+      run: |
+        echo "Testing backend health endpoint..."
+        curl -f http://localhost:${{ secrets.API_PORT }}/health || echo "Backend health check failed"
+
+    - name: Test container-to-container connectivity
+      run: |
+        echo "Testing if frontend container can reach backend container..."
+        # Test network connectivity from frontend to backend
+        docker compose exec -T frontend sh -c "wget --spider --quiet http://backend:${{ secrets.API_PORT }}/health" || echo "Frontend cannot reach backend"
+
+        # Test ping connectivity
+        docker compose exec -T frontend sh -c "ping -c 3 backend" || echo "Frontend cannot ping backend"
+
+    - name: Test backend API endpoints
+      run: |
+        echo "Testing backend API endpoints..."
+        # Test health endpoint
+        curl -f -H "Content-Type: application/json" http://localhost:${{ secrets.API_PORT }}/health
+
+        # Test if API responds with expected status codes
+        curl -s -o /dev/null -w "%{http_code}" http://localhost:${{ secrets.API_PORT }}/health | grep -q "200" || echo "Health endpoint returned non-200"
+
+    - name: Test end-to-end communication
+      run: |
+        echo "Testing end-to-end communication..."
+        # Check if frontend environment variables are correctly set
+        docker compose exec -T frontend sh -c "printenv | grep REACT_APP_API_URL" || echo "Frontend env vars not set"
+
+        # Simulate frontend calling backend (from container perspective)
+        docker compose exec -T frontend sh -c "wget --spider --quiet \$REACT_APP_API_URL/health" || echo "Frontend cannot reach backend via env var URL"
+
+    - name: Show logs for debugging
+      if: failure()
+      run: |
+        echo "=== Frontend logs ==="
+        docker compose logs frontend
+        echo "=== Backend logs ==="
+        docker compose logs backend
+        echo "=== Docker network info ==="
+        docker network ls
+        docker network inspect ai-enhanced-patient-healthcare_ai-healthcare-network || true
 
     - name: Cleanup
       run: docker compose down
