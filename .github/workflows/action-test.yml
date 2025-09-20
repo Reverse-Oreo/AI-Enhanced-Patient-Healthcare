@@ -62,7 +62,7 @@ jobs:
       run: |
         echo "Testing if frontend container can reach backend container..."
         # Test network connectivity from frontend to backend
-        docker compose exec -T frontend sh -c "wget --spider --quiet http://backend:${{ secrets.API_PORT }}/health" || echo "Frontend cannot reach backend"
+        docker compose exec -T frontend sh -c "curl -f http://backend:${{ secrets.API_PORT }}/health" || echo "Frontend cannot reach backend"
 
         # Test ping connectivity
         docker compose exec -T frontend sh -c "ping -c 3 backend" || echo "Frontend cannot ping backend"
