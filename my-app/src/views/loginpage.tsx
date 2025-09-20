@@ -77,7 +77,7 @@ const Login: React.FC = () => {
 
   return (
     <>
-      <Navbar loggedIn={false} />
+      <Navbar />
       <LoginPageWrapper>
         <FormContainer>
           <Title>Login</Title>

@@ -1,9 +1,13 @@
+export type Role = 'patient' | 'clinician';
+
 export interface UserProfile {
   id?: string;
   name: string;
   email: string;
   age: string;
   gender: string;
+
+  role: Role;
 }
 
 export interface AuthResponse {

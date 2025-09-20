@@ -118,7 +118,7 @@ const RegisterPage: React.FC = () => {
 
   return (
     <>
-      <Navbar loggedIn={false} />
+      <Navbar />
       <RegisterPageWrapper>
         <FormContainer>
           <Title>Register</Title>

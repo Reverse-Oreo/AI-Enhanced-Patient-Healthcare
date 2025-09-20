@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import type { Role, UserProfile } from 'types/auth';
 import styled from 'styled-components';
 import Navbar from 'components/homepage/Navbar';
 import { Button } from 'components/common/Button';
@@ -8,8 +9,9 @@ import { LoadingSpinner } from 'components/common/LoadingSpinner';
 import { useAuth } from 'contexts/AuthContext';
 import { AuthService } from 'services/auth';
 import { MedicalReportService, MedicalReport } from 'services/report';
-import { UserProfile } from 'types/auth';
 import { MedicalReportModal } from 'components/medical/MedicalReportModal';
+
+const BYPASS_AUTH = process.env.REACT_APP_BYPASS_AUTH === "true";
 
 const ProfileWrapper = styled.div`
   max-width: 1200px;
@@ -187,7 +189,9 @@ const ProfilePage: React.FC = () => {
     email: '',
     age: '',
     gender: '',
+    role: 'patient',
   });
+
   const [userEditMode, setUserEditMode] = useState(false);
   const [userLoading, setUserLoading] = useState(false);
   const [userError, setUserError] = useState<string | null>(null);
@@ -215,6 +219,7 @@ const ProfilePage: React.FC = () => {
         email: data.email || '',
         age: data.age || '',
         gender: data.gender || '',
+        role: (data.role as Role) || 'patient',
       });
     } catch (err: any) {
       setUserError('Failed to load profile');
@@ -239,11 +244,27 @@ const ProfilePage: React.FC = () => {
 
   // Load data on mount
   useEffect(() => {
-    if (loggedIn) {
-      fetchUserProfile();
-      fetchMedicalReports();
+    if (loggedIn || BYPASS_AUTH) {
+      if (BYPASS_AUTH) {
+        setUserData({ 
+          name: 'Demo User',
+          email: 'demo@local',
+          age: '18-25',
+          gender: 'Female',
+          role: 'patient',    
+        });
+        setMedicalReports([
+          { id: "1", report_title: "Sample Flu Report", created_at: new Date().toISOString(),
+            overall_analysis: { final_diagnosis: "Flu", final_confidence: 0.82 },
+            patient_symptoms: "Cough, fever, sore throat" }
+        ] as any);
+      } else {
+        fetchUserProfile();
+        fetchMedicalReports();
+      }
     }
-  }, [loggedIn]);
+  }, [loggedIn, BYPASS_AUTH]);
+
 
   // Handle user profile form changes
   const handleUserChange = (field: keyof UserProfile, value: string) => {
@@ -264,19 +285,17 @@ const handleUserSave = async (e: React.FormEvent) => {
   setUserError(null);
   setUserSuccess(null);
   try {
-    const updatedUser = await AuthService.updateProfile({
-      ...userData,
-      age: userData.age || '',
-      gender: userData.gender || '',
-    });
-    
-    console.log('✅ Profile updated:', updatedUser);
-    
+    const { role, ...payload } = userData;      // <-- strip role
+    const updated = await AuthService.updateProfile(payload);
+
+    console.log('✅ Profile updated:', updated);
+
     setUserData({
-      name: updatedUser.name || '',
-      email: updatedUser.email || '',
-      age: updatedUser.age || '',
-      gender: updatedUser.gender || '',
+      name: updated.name || '',
+      email: updated.email || '',
+      age: updated.age || '',
+      gender: updated.gender || '',
+      role: updated.role || 'patient',
     });
     
     setUserSuccess('Profile updated successfully!');
@@ -348,22 +367,24 @@ const handleUserSave = async (e: React.FormEvent) => {
     });
   };
 
-  if (!loggedIn) {
-    return (
-      <>
-        <Navbar loggedIn={false} />
-        <ProfileWrapper>
-          <SectionCard>
-            <ErrorText>Please log in to view your profile.</ErrorText>
-          </SectionCard>
-        </ProfileWrapper>
-      </>
-    );
-  }
+if (!loggedIn && !BYPASS_AUTH) {
+  return (
+    <>
+      <Navbar />
+      <ProfileWrapper>
+        <SectionCard>
+          <ErrorText>Please log in to view your profile.</ErrorText>
+        </SectionCard>
+      </ProfileWrapper>
+    </>
+  );
+}
+
+console.log("BYPASS_AUTH?", process.env.REACT_APP_BYPASS_AUTH);
 
   return (
     <>
-      <Navbar loggedIn={true} />
+      <Navbar />
       <ProfileWrapper>
         <ProfileHeader>
           <h1>👤 My Profile</h1>

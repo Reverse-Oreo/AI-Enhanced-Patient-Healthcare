@@ -1,35 +1,41 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { AuthService } from 'services/auth';
-import { UserProfile } from 'types/auth';
+import { UserProfile, Role } from 'types/auth';
 import { LoadingSpinner } from 'components/common/LoadingSpinner';
 
 interface AuthContextType {
+  loading: boolean;                 // expose loading
   loggedIn: boolean;
   user: UserProfile | null;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  refresh: () => Promise<void>;     // expose manual refresh
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// If backend doesn't return role exactly as 'patient' | 'clinician', normalize it here.
+function normalizeUser(u: any): UserProfile {
+  const role: Role =
+    (u?.role as Role) ??
+    (u?.isClinician ? 'clinician' : 'patient');
+  return { ...u, role };
+}
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [loading, setLoading] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  const checkAuthStatus = async () => {
+  const refresh = async () => {
     try {
       setLoading(true);
-
-      // Debug: Check if cookies exist
-      console.log("🍪Document cookies:", document.cookie);
+      // console.log("Document cookies:", document.cookie);
 
       const userData = await AuthService.getProfile();
-      console.log("✅ Auth check: User is logged in", userData);
-      setUser(userData);
+      setUser(normalizeUser(userData));
       setLoggedIn(true);
-    } catch (error) {
-      console.log("❌ Auth check: User is not logged in");
+    } catch {
       setUser(null);
       setLoggedIn(false);
     } finally {
@@ -38,41 +44,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    checkAuthStatus();
+    refresh();
   }, []);
 
   const login = async () => {
-    await checkAuthStatus();
+    // call real login here
+    await refresh();
   };
 
   const logout = async () => {
     try {
       await AuthService.logout();
-    } catch (error) {
-      console.error("Logout failed:", error);
+    } catch (err) {
+      console.error('Logout failed:', err);
     } finally {
       setUser(null);
       setLoggedIn(false);
     }
   };
 
-  const value = { loggedIn, user, login, logout };
+  const value: AuthContextType = { loading, loggedIn, user, login, logout, refresh };
 
-  if (loading) {
-    return <LoadingSpinner message="Checking session..." />;
-  }
+  if (loading) return <LoadingSpinner message="Checking session..." />;
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+  return ctx;
 };

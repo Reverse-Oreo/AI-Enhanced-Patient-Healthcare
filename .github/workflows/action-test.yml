@@ -1,0 +1,111 @@
+name: Deploy to Github Actions
+
+on:
+  push:
+    branches: [ "cicd" ]
+
+permissions:
+  contents: read
+
+jobs:
+
+  build-and-test:
+    name: Build and Test Services
+    runs-on: ubuntu-latest
+    environment: frontend
+    env:
+      REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
+      REACT_APP_WS_URL: ${{ secrets.REACT_APP_WS_URL }}
+      REACT_APP_ENVIRONMENT: ${{ secrets.REACT_APP_ENVIRONMENT }}
+      REACT_APP_URL: ${{ secrets.REACT_APP_URL }}
+      REACT_APP_BYPASS_AUTH: ${{ secrets.REACT_APP_BYPASS_AUTH }}
+      REACT_APP_BYPASS_ROLE: ${{ secrets.REACT_APP_BYPASS_ROLE }}
+      FRONTEND_PORT: ${{ secrets.FRONTEND_PORT }}
+      FRONTEND_HOST_PORT: ${{ secrets.FRONTEND_HOST_PORT }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_API_KEY: ${{ secrets.SUPABASE_API_KEY }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      API_PORT: ${{ secrets.API_PORT }}
+      DOCKERHUB_FRONTEND: ${{ secrets.DOCKERHUB_FRONTEND }}
+      DOCKERHUB_BACKEND: ${{ secrets.DOCKERHUB_BACKEND }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Pull frontend image from Docker Hub
+      run: docker pull ${{ secrets.DOCKERHUB_FRONTEND }}
+
+    - name: Pull backend image from Docker Hub
+      run: docker pull ${{ secrets.DOCKERHUB_BACKEND }}
+
+    - name: Start services
+      run: docker compose up -d
+
+    - name: Wait for services to be ready
+      run: |
+        echo "Waiting for backend to start up (models loading)..."
+        # Wait up to 30 seconds for backend health check
+        timeout 30s bash -c 'until curl -f http://localhost:${{ secrets.API_PORT }}/health; do echo "Waiting for backend..."; sleep 5; done' || echo "Backend startup timeout"
+
+        echo "Waiting for frontend..."
+        sleep 10
+
+    - name: Test frontend
+      run: |
+        docker compose logs frontend
+        curl -f http://localhost:${{ secrets.FRONTEND_HOST_PORT }} || echo "Frontend not ready"
+
+    - name: Test backend accessibility
+      run: |
+        echo "Testing backend health endpoint..."
+        curl -f http://localhost:${{ secrets.API_PORT }}/health || echo "Backend health check failed"
+
+    - name: Test container-to-container connectivity
+      run: |
+        echo "Testing if frontend container can reach backend container..."
+        # Test network connectivity from frontend to backend
+        docker compose exec -T frontend sh -c "curl -f http://backend:${{ secrets.API_PORT }}/health" || echo "Frontend cannot reach backend"
+
+        # Test ping connectivity
+        docker compose exec -T frontend sh -c "ping -c 3 backend" || echo "Frontend cannot ping backend"
+
+    - name: Test backend API endpoints
+      run: |
+        echo "Testing backend API endpoints..."
+        # Test health endpoint
+        curl -f -H "Content-Type: application/json" http://localhost:${{ secrets.API_PORT }}/health
+
+        # Test if API responds with expected status codes
+        curl -s -o /dev/null -w "%{http_code}" http://localhost:${{ secrets.API_PORT }}/health | grep -q "200" || echo "Health endpoint returned non-200"
+
+    - name: Test end-to-end communication
+      run: |
+        echo "Testing end-to-end communication..."
+        # Check if frontend environment variables are correctly set
+        docker compose exec -T frontend sh -c "printenv | grep REACT_APP_API_URL" || echo "Frontend env vars not set"
+
+        # Simulate frontend calling backend (from container perspective)
+        docker compose exec -T frontend sh -c "curl -f $REACT_APP_API_URL/health" || echo "Frontend cannot reach backend via env var URL"
+
+    - name: Show logs for debugging
+      if: failure()
+      run: |
+        echo "=== Backend startup logs ==="
+        docker compose logs backend | head -50
+        echo "=== Frontend logs ==="
+        docker compose logs frontend | head -30
+        echo "=== Container status ==="
+        docker compose ps
+        echo "=== Docker network info ==="
+        docker network ls
+        docker network inspect ai-enhanced-patient-healthcare_ai-healthcare-network || true
+
+    - name: Check backend container status
+      run: |
+        echo "=== Backend container health ==="
+        docker compose ps backend
+        echo "=== Backend logs (last 20 lines) ==="
+        docker compose logs --tail=20 backend
+
+    - name: Cleanup
+      run: docker compose down
