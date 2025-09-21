@@ -1,0 +1,47 @@
+{
+  "family": "healthcare-combined",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::694509210714:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::694509210714:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "healthcare-combined",
+      "image": "694509210714.dkr.ecr.ap-southeast-1.amazonaws.com/ai-healthcare-combined:latest",
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/healthcare-combined",
+          "awslogs-region": "ap-southeast-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "secrets": [
+        {
+          "name": "SUPABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:694509210714:secret:healthcare/supabase-url-SLSwHp"
+        },
+        {
+          "name": "SUPABASE_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:694509210714:secret:healthcare/supabase-key-hzQSHK"
+        }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost/ || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}
