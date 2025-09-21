@@ -6,10 +6,7 @@ services:
     environment:
       - REACT_APP_API_URL=${REACT_APP_API_URL}
       - REACT_APP_WS_URL=${REACT_APP_WS_URL}
-      - REACT_APP_ENVIRONMENT=${REACT_APP_ENVIRONMENT}
       - REACT_APP_URL=${REACT_APP_URL}
-      - REACT_APP_BYPASS_AUTH=${REACT_APP_BYPASS_AUTH}
-      - REACT_APP_BYPASS_ROLE=${REACT_APP_BYPASS_ROLE}
     networks:
       - ai-healthcare-network
     healthcheck:
@@ -24,6 +21,9 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_API_KEY=${SUPABASE_API_KEY}
       - JWT_SECRET=${JWT_SECRET}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
     ports:
       - "${API_PORT}:${API_PORT}"
     networks:
