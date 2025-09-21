@@ -7,12 +7,12 @@ import {
   Role
 } from '../types/auth';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || (() => {
-  console.warn('⚠️ REACT_APP_API_URL not found, using localhost fallback');
-  return 'http://localhost:8000';
-})();
+if (!process.env.REACT_APP_API_URL) {
+  throw new Error('REACT_APP_API_URL environment variable is required but not set during build');
+}
 
-console.log('🔐 Auth Service using:', API_BASE_URL, process.env.REACT_APP_API_URL ? '(from env)' : '(fallback)');
+const API_BASE_URL = process.env.REACT_APP_API_URL;
+console.log('🔐 Auth Service using:', API_BASE_URL);
 
 export class AuthService {
   static async register(userData: RegisterData, role: Role): Promise<AuthResponse> {
