@@ -33,7 +33,7 @@ name: Deploy to Amazon ECS
 
 on:
   push:
-    branches: [ "cicd" ]
+    branches: [ "cicd2" ]
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
