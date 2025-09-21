@@ -1,0 +1,62 @@
+{
+  "family": "healthcare-combined",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "8192",
+  "memory": "61440",
+  "executionRoleArn": "arn:aws:iam::694509210714:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::694509210714:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "healthcare-combined",
+      "image": "694509210714.dkr.ecr.ap-southeast-1.amazonaws.com/ai-healthcare-combined:latest",
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/healthcare-combined",
+          "awslogs-region": "ap-southeast-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "secrets": [
+        {
+          "name": "SUPABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:694509210714:secret:ai-healthcare/prod/supabase-url-SLSwHp"
+        },
+        {
+          "name": "SUPABASE_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:694509210714:secret:ai-healthcare/prod/supabase-api-key-v0f45S"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:694509210714:secret:ai-healthcare/prod/jwt-secret-ohJd4y"
+        },
+        {
+          "name": "AWS_ACCESS_KEY_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:694509210714:secret:ai-healthcare/prod/bedrock_access_id-2ctq7j"
+        },
+        {
+          "name": "AWS_SECRET_ACCESS_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:694509210714:secret:ai-healthcare/prod/bedrock_secret_key-TQQ6DG"
+        }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost/ || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ],
+  "ephemeralStorage": {
+    "sizeInGiB": 100
+  }
+}

@@ -1,4 +1,9 @@
-const API_BASE_URL = 'http://localhost:8000';
+if (!process.env.REACT_APP_API_URL) {
+  throw new Error('REACT_APP_API_URL environment variable is required but not set during build');
+}
+
+const API_BASE_URL = process.env.REACT_APP_API_URL;
+console.log('🔗 API Service using:', API_BASE_URL);
 
 export interface DiagnosisRequest {
   symptoms: string;

@@ -1,0 +1,56 @@
+name: Build and Push Combined App to ECR
+
+on:
+  push:
+    branches: [cicd2]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-southeast-1
+  ECR_REPOSITORY: ai-healthcare-combined
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push combined image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f Dockerfile.combined \
+            --build-arg REACT_APP_API_URL="http://localhost/api" \
+            --build-arg REACT_APP_WS_URL="ws://localhost/api" \
+            --build-arg REACT_APP_URL="http://localhost" \
+            --build-arg REACT_APP_SUPABASE_URL="${{ secrets.REACT_APP_SUPABASE_URL }}" \
+            --build-arg REACT_APP_SUPABASE_ANON_KEY="${{ secrets.REACT_APP_SUPABASE_ANON_KEY }}" \
+            --build-arg REACT_APP_BYPASS_AUTH=false \
+            --build-arg REACT_APP_SHOW_DEMO_WHEN_LOGGED_OUT=true \
+            --build-arg REACT_APP_INCLUDE_DEMO_WHEN_LOGGED_IN=false \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            .
+
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+          echo "IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT

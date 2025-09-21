@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from 'contexts/AuthContext';
 
+if (!process.env.REACT_APP_API_URL) {
+  throw new Error('REACT_APP_API_URL environment variable is required but not set during build');
+}
+
+const API_BASE_URL = process.env.REACT_APP_API_URL;
+console.log('📅 AdminInvites using:', API_BASE_URL);
+
 const AdminInvite = () => {
   const { user } = useAuth();
   
@@ -47,7 +54,7 @@ const canManageInvitations = true; //bypass for now
 
   const fetchInvitations = async () => {
     try {
-      const response = await fetch('http://localhost:8000/auth/admin/invitations', {
+      const response = await fetch(`${API_BASE_URL}/auth/admin/invitations`, {
         credentials: 'include'
       });
       if (response.ok) {
@@ -65,7 +72,7 @@ const canManageInvitations = true; //bypass for now
     setSuccess('');
 
     try {
-      const response = await fetch('http://localhost:8000/auth/admin/send-invitation', {
+      const response = await fetch(`${API_BASE_URL}/auth/admin/send-invitation`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
