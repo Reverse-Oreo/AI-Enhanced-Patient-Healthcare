@@ -17,6 +17,7 @@ import NurseWorklist from 'views/nurse/worklist';
 import NursePatients from 'views/nurse/patients';
 import ConfirmationPending from './views/confirmationpage';
 import AdminInvite from './pages/adminInvites'
+import PatientChart from './views/PatientChart';
 
 const App: React.FC = () => (
   <AuthProvider>
@@ -57,7 +58,7 @@ const App: React.FC = () => (
       />
 
       {/* Nurse-only area */}
-      <Route
+      {/* <Route
         path="/nurse-patients"
         element={
           <PrivateRoute requiredRole="nurse">
@@ -66,7 +67,10 @@ const App: React.FC = () => (
             </RoleRoute>
           </PrivateRoute>
         }
-      />
+      /> */}
+
+      {/* To this (temporarily remove protection): */}
+      <Route path="/nurse-patients" element={<NursePatients />} />
       <Route
         path="/nurse-worklist"
         element={
@@ -79,7 +83,7 @@ const App: React.FC = () => (
       />
 
       {/* Clinician-only area */}
-      <Route
+      {/* <Route
         path="/patients"
         element={
           <PrivateRoute requiredRole="clinician">
@@ -88,8 +92,13 @@ const App: React.FC = () => (
             </RoleRoute>
           </PrivateRoute>
         }
-      />
-      <Route
+      /> */}
+
+      <Route path="/patients" element={<Patients />} />
+
+      <Route path="/patient/:id" element={<PatientChart />} />
+
+      {/* <Route
         path="/clinicianDashboard"
         element={
           <PrivateRoute requiredRole="clinician">
@@ -98,7 +107,10 @@ const App: React.FC = () => (
             </RoleRoute>
           </PrivateRoute>
         }
-      />
+      /> */}
+
+      <Route path="/clinicianDashboard" element={<ClinicianDashboard />} />
+
 
       <Route
         path="/confirmation-pending"
