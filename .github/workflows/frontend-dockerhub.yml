@@ -52,11 +52,12 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: |
+          REACT_APP_SUPABASE_URL=${{ secrets.REACT_APP_SUPABASE_URL }}
+          REACT_APP_SUPABASE_ANON_KEY=${{ secrets.REACT_APP_SUPABASE_ANON_KEY }}
           REACT_APP_API_URL=${{ secrets.ALB_URL }}/api
           REACT_APP_WS_URL=ws://${{ secrets.ALB_DNS_NAME }}/api
           REACT_APP_URL=${{ secrets.ALB_URL }}
-          REACT_APP_SUPABASE_URL=${{ secrets.REACT_APP_SUPABASE_URL }}
-          REACT_APP_SUPABASE_ANON_KEY=${{ secrets.REACT_APP_SUPABASE_ANON_KEY }}
+
 
     - name: Image digest
       run: echo ${{ steps.build.outputs.digest }}
