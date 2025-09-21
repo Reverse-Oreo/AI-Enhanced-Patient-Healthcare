@@ -1,4 +1,9 @@
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || (() => {
+  console.warn('⚠️ REACT_APP_API_URL not found, using localhost fallback');
+  return 'http://localhost:8000';
+})();
+
+console.log('🔗 API Service using:', API_BASE_URL, process.env.REACT_APP_API_URL ? '(from env)' : '(fallback)');
 
 export interface DiagnosisRequest {
   symptoms: string;
