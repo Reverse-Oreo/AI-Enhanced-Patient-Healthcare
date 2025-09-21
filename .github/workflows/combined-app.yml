@@ -16,6 +16,7 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    environment: production
 
     steps:
       - name: Checkout code
@@ -40,8 +41,8 @@ jobs:
             --build-arg REACT_APP_API_URL="http://localhost/api" \
             --build-arg REACT_APP_WS_URL="ws://localhost/api" \
             --build-arg REACT_APP_URL="http://localhost" \
-            --build-arg REACT_APP_SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
-            --build-arg REACT_APP_SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
+            --build-arg REACT_APP_SUPABASE_URL="${{ secrets.REACT_APP_SUPABASE_URL }}" \
+            --build-arg REACT_APP_SUPABASE_ANON_KEY="${{ secrets.REACT_APP_SUPABASE_ANON_KEY }}" \
             --build-arg REACT_APP_BYPASS_AUTH=false \
             --build-arg REACT_APP_SHOW_DEMO_WHEN_LOGGED_OUT=true \
             --build-arg REACT_APP_INCLUDE_DEMO_WHEN_LOGGED_IN=false \
