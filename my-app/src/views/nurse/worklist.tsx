@@ -1,6 +1,7 @@
 import Navbar from "components/homepage/Navbar";
 import styled from "styled-components";
 import { useAuth } from "contexts/AuthContext";
+import SectionTabs from "components/common/SectionTabs";
 
 const Wrap = styled.div`
   max-width: 1100px; margin: 40px auto; padding: 0 20px;
@@ -13,7 +14,8 @@ export default function Worklist() {
   const { user } = useAuth();
   return (
     <>
-      <Navbar />
+    <Navbar />
+    <SectionTabs />
       <Wrap>
         <H1>Your worklist, {user?.name || 'User'} 🩺</H1>
         <Sub>Manage your tasks efficiently.</Sub>

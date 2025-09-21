@@ -173,7 +173,7 @@ const canManageInvitations = true; //bypass for now
                 style={{width: '100%', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '1rem'}}
               >
                 <option value="nurse">Nurse</option>
-                <option value="clinician">Clinician</option>
+                <option value="clinician">Doctor</option>
               </select>
             </div>
 

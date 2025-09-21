@@ -4,6 +4,7 @@ import { WorkflowRouter } from 'WorkflowRouter';
 import { useDiagnosis } from 'hooks/useDiagnosis';
 import Navbar from 'components/homepage/Navbar';
 import { useAuth } from 'contexts/AuthContext';
+import SectionTabs from 'components/common/SectionTabs';
 
 const BYPASS_AUTH = process.env.REACT_APP_BYPASS_AUTH === "true";
 
@@ -110,6 +111,7 @@ const handleImageSubmit = async (image: File) => {
   return (
     <>
     <Navbar />
+    <SectionTabs />
       
       <div className="App" style={{ minHeight: '100vh', position: 'relative', paddingTop: '31px' }}>
 

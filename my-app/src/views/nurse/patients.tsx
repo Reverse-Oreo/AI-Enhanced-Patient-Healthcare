@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import Navbar from 'components/homepage/Navbar';
 import { fetchPatients, assignPatientToDoctor, submitPatientData } from 'services/nurse';
 import { useAuth } from 'contexts/AuthContext';
+import SectionTabs from 'components/common/SectionTabs';
 
 const Wrap = styled.div`max-width:1320px; margin:0 auto; padding:24px;`;
 const Controls = styled.div`display:flex; gap:12px; margin:8px 0 16px; flex-wrap:wrap;`;
@@ -256,6 +257,7 @@ export default function NursePatients() {
   return (
     <>
       <Navbar />
+      <SectionTabs />
       <Wrap>
         <h1 style={{margin:'0 0 10px'}}>Patients - Nurse View</h1>
 

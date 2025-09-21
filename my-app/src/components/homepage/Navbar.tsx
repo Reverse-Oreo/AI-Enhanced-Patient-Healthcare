@@ -83,7 +83,10 @@ const GhostBtn = styled.button`
 `;
 
 /* ========== Component ========== */
-const roleLabel = (r: Role) => r[0].toUpperCase() + r.slice(1);
+const roleLabel = (r: Role) => {
+  if (r === 'clinician') return 'Doctor';
+  return r[0].toUpperCase() + r.slice(1);
+};
 
 export default function Navbar() {
   const { user, logout, viewRole, setViewRoleState } = useAuth();

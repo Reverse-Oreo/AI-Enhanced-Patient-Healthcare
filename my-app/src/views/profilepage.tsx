@@ -10,6 +10,7 @@ import { useAuth } from 'contexts/AuthContext';
 import { AuthService } from 'services/auth';
 import { MedicalReportService, MedicalReport } from 'services/report';
 import { MedicalReportModal } from 'components/medical/MedicalReportModal';
+import SectionTabs from 'components/common/SectionTabs'
 
 const BYPASS_AUTH = process.env.REACT_APP_BYPASS_AUTH === "true";
 
@@ -214,10 +215,10 @@ const ProfilePage: React.FC = () => {
         return (
           <SectionCard>
             <SectionHeader>
-              <h3>👨‍⚕️ Clinician Information</h3>
+              <h3>👨‍⚕️ Doctor Information</h3>
             </SectionHeader>
             <p>Specialized tools and information for healthcare providers.</p>
-            {/* Add clinician-specific content here */}
+            {/* Add doctor-specific content here */}
           </SectionCard>
         );
       case 'nurse':
@@ -419,6 +420,7 @@ console.log("BYPASS_AUTH?", process.env.REACT_APP_BYPASS_AUTH);
   return (
     <>
       <Navbar />
+      <SectionTabs />
       <ProfileWrapper>
         <ProfileHeader>
           <h1>
@@ -427,7 +429,7 @@ console.log("BYPASS_AUTH?", process.env.REACT_APP_BYPASS_AUTH);
             My Profile
           </h1>
           <p>
-            {userData.role === 'clinician' ? 'Healthcare provider account settings' :
+            {userData.role === 'clinician' ? 'Doctor account settings' :
              userData.role === 'nurse' ? 'Nursing account management' :
              'Manage your account settings and medical history'}
           </p>
@@ -661,7 +663,7 @@ console.log("BYPASS_AUTH?", process.env.REACT_APP_BYPASS_AUTH);
             <SectionCard>
               <SectionHeader>
                 <h3>
-                  {userData.role === 'clinician' ? '👨‍⚕️ Clinician Dashboard' :
+                  {userData.role === 'clinician' ? '👨‍⚕️ Doctor Dashboard' :
                    userData.role === 'nurse' ? '👩‍⚕️ Nurse Dashboard' : ''}
                 </h3>
               </SectionHeader>

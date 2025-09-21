@@ -10,6 +10,7 @@ import ProfilePage from 'views/profilepage';
 import DiagnosisPage from 'views/diagnosis';
 import Patients from 'views/patients';
 import ClinicianDashboard from 'views/clinicianDashboard';
+import DashboardPage from 'views/DashboardPage';
 import PrivateRoute from 'components/routing/PrivateRoute';
 import RoleRoute from 'components/routing/RoleRoute';
 import NurseHome from 'views/nursehome';
@@ -82,7 +83,7 @@ const App: React.FC = () => (
         }
       />
 
-      {/* Clinician-only area */}
+      {/* Doctor-only area */}
       {/* <Route
         path="/patients"
         element={
@@ -110,6 +111,58 @@ const App: React.FC = () => (
       /> */}
 
       <Route path="/clinicianDashboard" element={<ClinicianDashboard />} />
+
+      {/* External Dashboard Routes - Temporarily without role restrictions */}
+      <Route 
+        path="/dashboard" 
+        element={
+          <PrivateRoute>
+            <DashboardPage />
+          </PrivateRoute>
+        } 
+      />
+
+      <Route 
+        path="/nurse-dashboard" 
+        element={
+          <PrivateRoute>
+            <DashboardPage role="nurse" />
+          </PrivateRoute>
+        } 
+      />
+
+      <Route 
+        path="/clinician-dashboard" 
+        element={
+          <PrivateRoute>
+            <DashboardPage role="clinician" />
+          </PrivateRoute>
+        } 
+      />
+
+      {/* Commented out - with role restrictions
+      <Route 
+        path="/nurse-dashboard" 
+        element={
+          <PrivateRoute requiredRole="nurse">
+            <RoleRoute role="nurse">
+              <DashboardPage role="nurse" />
+            </RoleRoute>
+          </PrivateRoute>
+        } 
+      />
+
+      <Route 
+        path="/clinician-dashboard" 
+        element={
+          <PrivateRoute requiredRole="clinician">
+            <RoleRoute role="clinician">
+              <DashboardPage role="clinician" />
+            </RoleRoute>
+          </PrivateRoute>
+        } 
+      />
+      */}
 
 
       <Route

@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import Navbar from 'components/homepage/Navbar';
 import { fetchAssignedPatientsHybrid, PatientRow } from 'services/clinician';
+import SectionTabs from 'components/common/SectionTabs';
 
 const Wrap = styled.div`max-width:1320px; margin:0 auto; padding:24px;`;
 const Controls = styled.div`display:flex; gap:12px; margin:8px 0 16px; flex-wrap:wrap;`;
@@ -91,6 +92,7 @@ export default function DoctorPatients() {
   return (
     <>
       <Navbar />
+      <SectionTabs />
       <Wrap>
         <h1 style={{margin:'0 0 20px'}}>Assigned Patients – Doctor View</h1>
 
