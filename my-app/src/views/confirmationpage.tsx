@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { AuthService } from 'services/auth';
 import { useAuth } from 'contexts/AuthContext';
 import { LoadingSpinner } from 'components/common/LoadingSpinner';
+import type { Role } from 'types/auth';
 
 const ConfirmationPending: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -39,7 +40,11 @@ const ConfirmationPending: React.FC = () => {
     setSuccess(null);
 
     try {
-      const response = await AuthService.register(registrationData);
+      // Pass both userData and role to register method
+      const response = await AuthService.register(
+        registrationData,
+        registrationData.role as Role
+      );
 
       if (response.email_confirmation_required) {
         setSuccess(

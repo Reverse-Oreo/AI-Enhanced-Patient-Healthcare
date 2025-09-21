@@ -1,7 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-type InputType = "textarea" | "text" | "file" | "email" | "password";
+type InputType = 'textarea' | 'text' | 'file' | 'email' | 'password' | 'number' | 'search';
 
 interface InputProps {
   type?: InputType;
@@ -13,9 +13,14 @@ interface InputProps {
   style?: React.CSSProperties;
   id?: string;
   onKeyDown?: (e: React.KeyboardEvent) => void;
+
+  min?: number;
+  max?: number;
+  step?: number;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
+  pattern?: string;
 }
 
-// A basic styled wrapper
 const StyledInput = styled.input`
   width: 100%;
   padding: 0.75rem 1rem;
@@ -34,7 +39,7 @@ const StyledTextarea = styled.textarea`
 `;
 
 export const Input: React.FC<InputProps> = ({
-  type = "text",
+  type = 'text',
   value,
   onChange,
   placeholder,
@@ -42,13 +47,18 @@ export const Input: React.FC<InputProps> = ({
   maxLength,
   style,
   id,
-  onKeyDown
+  onKeyDown,
+  min,
+  max,
+  step,
+  inputMode,
+  pattern,
 }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     onChange(e.target.value);
   };
 
-  if (type === "textarea") {
+  if (type === 'textarea') {
     return (
       <StyledTextarea
         value={value}
@@ -63,7 +73,6 @@ export const Input: React.FC<InputProps> = ({
     );
   }
 
-  // For all other input types (text, email, password, file)
   return (
     <StyledInput
       type={type}
@@ -75,6 +84,12 @@ export const Input: React.FC<InputProps> = ({
       style={style}
       id={id}
       onKeyDown={onKeyDown}
+
+      min={type === 'number' ? min : undefined}
+      max={type === 'number' ? max : undefined}
+      step={type === 'number' ? step : undefined}
+      inputMode={inputMode}
+      pattern={pattern}
     />
   );
 };

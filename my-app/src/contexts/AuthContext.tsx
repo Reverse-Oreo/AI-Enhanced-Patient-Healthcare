@@ -1,69 +1,126 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  ReactNode,
+} from 'react';
 import { AuthService } from 'services/auth';
-import { UserProfile, Role } from 'types/auth';
+import type { UserProfile, Role } from 'types/auth';
 import { LoadingSpinner } from 'components/common/LoadingSpinner';
 
-interface AuthContextType {
-  loading: boolean;                 // expose loading
+type AuthContextType = {
+  loading: boolean;
   loggedIn: boolean;
   user: UserProfile | null;
+  userRole: Role | null;
+
+  // preview role for header toggle when not logged in
+  viewRole: Role;
+  setViewRoleState: (r: Role) => void;
+
   login: () => Promise<void>;
   logout: () => Promise<void>;
-  refresh: () => Promise<void>;     // expose manual refresh
-}
+  refresh: () => Promise<void>;
+  hasRole: (role: Role) => boolean;
+};
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// If backend doesn't return role exactly as 'patient' | 'clinician', normalize it here.
-function normalizeUser(u: any): UserProfile {
+const VIEW_ROLE_KEY = 'viewRole';
+
+function normalizeUser(u: any): UserProfile | null {
+  if (!u) return null;
+  
+  // Extract role from user data or use stored role
+  const raw = (u.role || AuthService.getStoredRole() || 'patient') as Role;
+
   const role: Role =
-    (u?.role as Role) ??
-    (u?.isClinician ? 'clinician' : 'patient');
+    raw === 'patient' || raw === 'clinician' || raw === 'nurse' ? raw : 'patient';
+
   return { ...u, role };
 }
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
-  const [loggedIn, setLoggedIn] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [userRole, setUserRole] = useState<Role | null>(null);
 
-  const refresh = async () => {
+  // Preview role (used by header toggle when logged out)
+  const [viewRole, setViewRole] = useState<Role>(() => {
+    const saved = localStorage.getItem(VIEW_ROLE_KEY) as Role | null;
+    return saved === 'patient' || saved === 'clinician' || saved === 'nurse'
+      ? saved
+      : 'patient';
+  });
+
+  const setViewRoleState = useCallback((r: Role) => {
+    setViewRole(r);
+    localStorage.setItem(VIEW_ROLE_KEY, r);
+  }, []);
+
+  const refresh = useCallback(async () => {
     try {
       setLoading(true);
-      // console.log("Document cookies:", document.cookie);
-
-      const userData = await AuthService.getProfile();
-      setUser(normalizeUser(userData));
-      setLoggedIn(true);
+      const me = await AuthService.getProfile();
+      const normalizedUser = normalizeUser(me);
+      
+      setUser(normalizedUser);
+      setUserRole(normalizedUser?.role || null);
+      
+      // Update stored role if different
+      if (normalizedUser?.role && normalizedUser.role !== AuthService.getStoredRole()) {
+        localStorage.setItem('userRole', normalizedUser.role);
+      }
     } catch {
       setUser(null);
-      setLoggedIn(false);
+      setUserRole(null);
+      localStorage.removeItem('userRole');
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    refresh();
   }, []);
 
-  const login = async () => {
-    // call real login here
-    await refresh();
-  };
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
-  const logout = async () => {
+  const login = useCallback(async () => {
+    await refresh();
+  }, [refresh]);
+
+  const logout = useCallback(async () => {
     try {
       await AuthService.logout();
-    } catch (err) {
-      console.error('Logout failed:', err);
     } finally {
       setUser(null);
-      setLoggedIn(false);
+      setUserRole(null);
     }
-  };
+  }, []);
 
-  const value: AuthContextType = { loading, loggedIn, user, login, logout, refresh };
+  const hasRole = useCallback((role: Role): boolean => {
+    return userRole === role;
+  }, [userRole]);
+
+  const loggedIn = !!user;
+
+  const value: AuthContextType = useMemo(
+    () => ({
+      loading,
+      loggedIn,
+      user,
+      userRole,
+      viewRole,
+      setViewRoleState,
+      login,
+      logout,
+      refresh,
+      hasRole,
+    }),
+    [loading, loggedIn, user, userRole, viewRole, setViewRoleState, login, logout, refresh, hasRole]
+  );
 
   if (loading) return <LoadingSpinner message="Checking session..." />;
 

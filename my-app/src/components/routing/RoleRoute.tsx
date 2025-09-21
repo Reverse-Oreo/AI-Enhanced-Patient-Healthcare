@@ -1,15 +1,33 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from 'contexts/AuthContext';
-import { BYPASS } from 'utils/bypass';
+import type { Role } from 'types/auth';
 
-type Role = 'patient' | 'clinician';
+interface RoleRouteProps {
+  children: React.ReactNode;
+  role: Role;
+  fallback?: string;
+}
 
-const RoleRoute = ({ role, children }: { role: Role; children: React.ReactNode }) => {
-  const { loading, user } = useAuth();
-  if (loading) return null;
-  if (BYPASS) return <>{children}</>;
-  if (user?.role !== role) return <Navigate to="/" replace />;
+const RoleRoute: React.FC<RoleRouteProps> = ({ 
+  children, 
+  role, 
+  fallback = '/login' 
+}) => {
+  const { user, userRole, loggedIn, hasRole } = useAuth();
+  const location = useLocation();
+
+  if (!loggedIn) {
+    return <Navigate to={`${fallback}?role=${role}&next=${location.pathname}`} replace />;
+  }
+
+  if (!hasRole(role)) {
+    // Redirect to appropriate home based on actual role
+    const homeRoute = userRole === 'clinician' ? '/clinician-home' :
+                     userRole === 'nurse' ? '/nurse-home' : '/patient-home';
+    return <Navigate to={homeRoute} replace />;
+  }
+
   return <>{children}</>;
 };
 

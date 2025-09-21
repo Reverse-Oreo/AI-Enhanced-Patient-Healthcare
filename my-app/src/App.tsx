@@ -1,110 +1,114 @@
-// App.tsx
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
-
-import PrivateRoute from 'components/routing/PrivateRoute';
-import RoleRoute from 'components/routing/RoleRoute';
-
-import Homepage from 'views/homepage';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from 'contexts/AuthContext';
+import GeneralHome from 'views/homepage';
 import PatientHome from 'views/patienthome';
 import ClinicianHome from 'views/clinicianhome';
-
 import LoginPage from 'views/loginpage';
 import RegisterPage from 'views/registerpage';
-import ConfirmationPending from 'views/confirmationpage';
-
 import ProfilePage from 'views/profilepage';
-import DiagnosisFunction from 'views/diagnosis';
-import ChatbotPage from 'views/chatbot';
-
-import PatientsPage from 'views/patients';
+import DiagnosisPage from 'views/diagnosis';
+import Patients from 'views/patients';
 import ClinicianDashboard from 'views/clinicianDashboard';
+import PrivateRoute from 'components/routing/PrivateRoute';
+import RoleRoute from 'components/routing/RoleRoute';
+import NurseHome from 'views/nursehome';
+import NurseWorklist from 'views/nurse/worklist';
+import NursePatients from 'views/nurse/patients';
+import ConfirmationPending from './views/confirmationpage';
+import AdminInvite from './pages/adminInvites'
 
-function App(): React.JSX.Element {
-  return (
+const App: React.FC = () => (
+  <AuthProvider>
     <Routes>
-      {/* public */}
-      <Route path="/" element={<Homepage />} />
+
+      <Route path="/admin-invite" element={<AdminInvite />} />
+      
+      {/* Neutral marketing/landing */}
+      <Route path="/" element={<GeneralHome />} />
+
+      {/* Role homes (public, but look different) */}
+      <Route path="/patient-home" element={<PatientHome />} />
+      <Route path="/clinician-home" element={<ClinicianHome />} />
+      <Route path="/nurse-home" element={<NurseHome />} />
+
+      {/* Auth */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      <Route path="/confirmation-pending" element={<ConfirmationPending />} />
 
-      {/* patient-only (must be logged in unless BYPASS=true) */}
-      <Route
-        path="/patient-home"
-        element={
-          <PrivateRoute>
-            <RoleRoute role="patient">
-              <PatientHome />
-            </RoleRoute>
-          </PrivateRoute>
-        }
-      />
+      {/* Patient-only area */}
       <Route
         path="/profile"
         element={
           <PrivateRoute>
-            <RoleRoute role="patient">
               <ProfilePage />
-            </RoleRoute>
           </PrivateRoute>
         }
       />
       <Route
         path="/diagnosis"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredRole="patient">
             <RoleRoute role="patient">
-              <DiagnosisFunction />
-            </RoleRoute>
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/chatbot"
-        element={
-          <PrivateRoute>
-            {/* If you want both roles to use Chatbot, drop RoleRoute and keep PrivateRoute only */}
-            <RoleRoute role="patient">
-              <ChatbotPage />
+              <DiagnosisPage />
             </RoleRoute>
           </PrivateRoute>
         }
       />
 
-      {/* clinician-only */}
+      {/* Nurse-only area */}
       <Route
-        path="/clinician-home"
+        path="/nurse-patients"
         element={
-          <PrivateRoute>
-            <RoleRoute role="clinician">
-              <ClinicianHome />
+          <PrivateRoute requiredRole="nurse">
+            <RoleRoute role="nurse">
+              <NursePatients />
             </RoleRoute>
           </PrivateRoute>
         }
       />
+      <Route
+        path="/nurse-worklist"
+        element={
+          <PrivateRoute requiredRole="nurse">
+            <RoleRoute role="nurse">
+              <NurseWorklist />
+            </RoleRoute>
+          </PrivateRoute>
+        }
+      />
+
+      {/* Clinician-only area */}
       <Route
         path="/patients"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredRole="clinician">
             <RoleRoute role="clinician">
-              <PatientsPage />
+              <Patients />
             </RoleRoute>
           </PrivateRoute>
         }
       />
       <Route
-        path="/clinician-dashboard"
+        path="/clinicianDashboard"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredRole="clinician">
             <RoleRoute role="clinician">
               <ClinicianDashboard />
             </RoleRoute>
           </PrivateRoute>
         }
       />
+
+      <Route
+        path="/confirmation-pending"
+        element={<ConfirmationPending />}
+      />
+
+      {/* Fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-  );
-}
+  </AuthProvider>
+);
 
 export default App;

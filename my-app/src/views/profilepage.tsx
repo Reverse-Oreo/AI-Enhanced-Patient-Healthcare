@@ -208,25 +208,59 @@ const ProfilePage: React.FC = () => {
   const ageOptions = ['', 'Under 18', '18-25', '26-35', '36-45', '46-60', '61+'];
   const genderOptions = ['', 'Male', 'Female', 'Prefer not to say'];
 
-  // Fetch user profile data
-  const fetchUserProfile = async () => {
-    setUserLoading(true);
-    setUserError(null);
-    try {
-      const data = await AuthService.getProfile();
-      setUserData({
-        name: data.name || '',
-        email: data.email || '',
-        age: data.age || '',
-        gender: data.gender || '',
-        role: (data.role as Role) || 'patient',
-      });
-    } catch (err: any) {
-      setUserError('Failed to load profile');
-    } finally {
-      setUserLoading(false);
+  const renderRoleSpecificContent = () => {
+    switch (userData.role) {
+      case 'clinician':
+        return (
+          <SectionCard>
+            <SectionHeader>
+              <h3>👨‍⚕️ Clinician Information</h3>
+            </SectionHeader>
+            <p>Specialized tools and information for healthcare providers.</p>
+            {/* Add clinician-specific content here */}
+          </SectionCard>
+        );
+      case 'nurse':
+        return (
+          <SectionCard>
+            <SectionHeader>
+              <h3>👩‍⚕️ Nurse Information</h3>
+            </SectionHeader>
+            <p>Nursing-specific tools and patient management features.</p>
+            {/* Add nurse-specific content here */}
+          </SectionCard>
+        );
+      default:
+        return (
+          <SectionCard>
+            <SectionHeader>
+              <h3>👤 Patient Information</h3>
+            </SectionHeader>
+            <p>Your medical history and health management tools.</p>
+            {/* Patient-specific content is already in the main section */}
+          </SectionCard>
+        );
     }
   };
+  // Fetch user profile data
+    const fetchUserProfile = async () => {
+      setUserLoading(true);
+      setUserError(null);
+      try {
+        const data = await AuthService.getProfile();
+        setUserData({
+          name: data.name || '',
+          email: data.email || '',
+          age: data.age || '',
+          gender: data.gender || '',
+          role: (data.role as Role) || 'patient',
+        });
+      } catch (err: any) {
+        setUserError('Failed to load profile');
+      } finally {
+        setUserLoading(false);
+      }
+    };
 
   // Fetch medical reports
   const fetchMedicalReports = async () => {
@@ -387,8 +421,16 @@ console.log("BYPASS_AUTH?", process.env.REACT_APP_BYPASS_AUTH);
       <Navbar />
       <ProfileWrapper>
         <ProfileHeader>
-          <h1>👤 My Profile</h1>
-          <p>Manage your account settings and medical history</p>
+          <h1>
+            {userData.role === 'clinician' ? '👨‍⚕️' : 
+             userData.role === 'nurse' ? '👩‍⚕️' : '👤'} 
+            My Profile
+          </h1>
+          <p>
+            {userData.role === 'clinician' ? 'Healthcare provider account settings' :
+             userData.role === 'nurse' ? 'Nursing account management' :
+             'Manage your account settings and medical history'}
+          </p>
         </ProfileHeader>
 
         <ProfileGrid>
@@ -614,11 +656,33 @@ console.log("BYPASS_AUTH?", process.env.REACT_APP_BYPASS_AUTH);
               </ReportsContainer>
             )}
           </SectionCard>
+
+          {userData.role !== 'patient' && (
+            <SectionCard>
+              <SectionHeader>
+                <h3>
+                  {userData.role === 'clinician' ? '👨‍⚕️ Clinician Dashboard' :
+                   userData.role === 'nurse' ? '👩‍⚕️ Nurse Dashboard' : ''}
+                </h3>
+              </SectionHeader>
+              {/* Add role-specific dashboard content here */}
+              <Button
+                variant="primary"
+                onClick={() => {
+                  window.location.href = userData.role === 'clinician' 
+                    ? '/clinicianDashboard' 
+                    : '/nurse-worklist';
+                }}
+              >
+                Go to {userData.role === 'clinician' ? 'Clinician' : 'Nurse'} Dashboard
+              </Button>
+            </SectionCard>
+          )}
         </ProfileGrid>
       </ProfileWrapper>
       
-      {/* Medical Report Modal */}
-      {selectedReport && (
+      {/* Medical Report Modal - Only for patients */}
+      {userData.role === 'patient' && selectedReport && (
         <MedicalReportModal
           report={selectedReport}
           onClose={() => setSelectedReport(null)}

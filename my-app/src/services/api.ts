@@ -6,6 +6,43 @@ export interface DiagnosisRequest {
   location?: { lat: number; lng: number };
 }
 
+// Nurse-specific interfaces
+export interface ClinicalData {
+  bloodPressure: string;
+  heartRate: number;
+  temperature: number;
+  respiratoryRate: number;
+  oxygenSaturation: number;
+  symptoms: string;
+  notes: string;
+}
+
+export interface LabData {
+  testType: string;
+  result: string;
+  units: string;
+  referenceRange: string;
+}
+
+export interface LifestyleData {
+  diet: string;
+  exercise: string;
+  sleep: string;
+  alcohol: string;
+  smoking: string;
+}
+
+export interface PatientDataSubmission {
+  clinicalData: ClinicalData;
+  labData: LabData;
+  lifestyleData: LifestyleData;
+}
+
+export interface DoctorAssignment {
+  patientId: string;
+  doctorId: string;
+}
+
 export class ApiService {
   
   // Test backend connection
@@ -22,6 +59,140 @@ export class ApiService {
     }
   }
 
+  // NURSE ENDPOINTS
+
+  // Get patients list for nurse view
+  static async getNursePatients(): Promise<any> {
+    try {
+      console.log('👥 Fetching nurse patients list');
+      
+      const response = await fetch(`${API_BASE_URL}/nurse/patients`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch patients: HTTP ${response.status} - ${errorText}`);
+      }
+
+      return await response.json();
+
+    } catch (error) {
+      console.error('❌ Failed to fetch nurse patients:', error);
+      throw error;
+    }
+  }
+
+  // Get available doctors for assignment
+  static async getAvailableDoctors(): Promise<any> {
+    try {
+      console.log('👨‍⚕️ Fetching available doctors');
+      
+      const response = await fetch(`${API_BASE_URL}/nurse/doctors`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch doctors: HTTP ${response.status} - ${errorText}`);
+      }
+
+      return await response.json();
+
+    } catch (error) {
+      console.error('❌ Failed to fetch available doctors:', error);
+      throw error;
+    }
+  }
+
+  // Assign patient to doctor
+  static async assignPatientToDoctor(assignment: DoctorAssignment): Promise<any> {
+    try {
+      console.log('📋 Assigning patient to doctor:', assignment);
+      
+      const response = await fetch(`${API_BASE_URL}/nurse/assign-doctor`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(assignment),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Assignment failed: HTTP ${response.status} - ${errorText}`);
+      }
+
+      return await response.json();
+
+    } catch (error) {
+      console.error('❌ Failed to assign patient to doctor:', error);
+      throw error;
+    }
+  }
+
+  // Submit patient data (clinical, lab, lifestyle)
+  static async submitPatientData(patientId: string, data: PatientDataSubmission): Promise<any> {
+    try {
+      console.log('📊 Submitting patient data for:', patientId);
+      
+      const formData = new FormData();
+      formData.append('patient_id', patientId);
+      formData.append('clinical_data', JSON.stringify(data.clinicalData));
+      formData.append('lab_data', JSON.stringify(data.labData));
+      formData.append('lifestyle_data', JSON.stringify(data.lifestyleData));
+
+      const response = await fetch(`${API_BASE_URL}/nurse/patient-data`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Data submission failed: HTTP ${response.status} - ${errorText}`);
+      }
+
+      return await response.json();
+
+    } catch (error) {
+      console.error('❌ Failed to submit patient data:', error);
+      throw error;
+    }
+  }
+
+  // Get patient details for data input
+  static async getPatientDetails(patientId: string): Promise<any> {
+    try {
+      console.log('📋 Fetching patient details:', patientId);
+      
+      const response = await fetch(`${API_BASE_URL}/nurse/patient/${patientId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch patient details: HTTP ${response.status} - ${errorText}`);
+      }
+
+      return await response.json();
+
+    } catch (error) {
+      console.error('❌ Failed to fetch patient details:', error);
+      throw error;
+    }
+  }
+
+  // EXISTING PATIENT DIAGNOSIS ENDPOINTS (keep your original code)
+
   //NODE 1: textual analysis
   static async startTextualAnalysis(request: DiagnosisRequest): Promise<any> {
     try {
@@ -31,7 +202,7 @@ export class ApiService {
       formData.append('user_symptoms', request.symptoms);
       formData.append('session_id', sessionId);
       
-//Comprehensive debug logging
+      // Comprehensive debug logging
       const fullUrl = `${API_BASE_URL}/patient/textual_analysis`;
       console.log('🔍 DETAILED API CALL DEBUG:');
       console.log('  Full URL:', fullUrl);
@@ -183,7 +354,7 @@ export class ApiService {
     }
   }
   
-    //PDF/Word generation 
+  //PDF/Word generation 
   static async exportMedicalReport(
     sessionId: string, 
     format: 'pdf' | 'word', 

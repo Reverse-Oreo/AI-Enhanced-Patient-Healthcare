@@ -1,119 +1,139 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import Navbar from 'components/homepage/Navbar';
-import { Button } from 'components/common/Button';
-import { Input } from 'components/common/Input';
 import { useAuth } from 'contexts/AuthContext';
 import { AuthService } from 'services/auth';
 
+type Role = 'patient' | 'clinician' | 'nurse';
 
-const LoginPageWrapper = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-top: 4rem;
+const SuccessText = styled.div`
+  color: #22c55e; 
+  font-size: 13px; 
+  text-align: center; 
+  margin: 0 0 8px;
 `;
 
-const FormContainer = styled.div`
-  max-width: 400px;
-  width: 100%;
-  margin: 2rem auto;
-  padding: 2rem;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
-  background: #fff;
+const ErrorText = styled.div`
+  color: #ef4444; 
+  font-size: 13px; 
+  text-align: center; 
+  margin: 0 0 8px;
 `;
 
-const Title = styled.h2`
-  text-align: center;
-  margin-bottom: 1rem;
+const Page = styled.div<{ $accent: string }>`
+  display:flex; justify-content:center; padding:96px 16px 40px;
+  &:before { content:""; position:fixed; top:64px; left:0; right:0; height:4px; background:${p=>p.$accent}; }
 `;
-
-const ErrorText = styled.p`
-  color: red;
-  font-size: 0.9rem;
-  text-align: center;
+const Card = styled.form`
+  width:100%; max-width:420px; background:#fff; border-radius:12px;
+  box-shadow:0 8px 28px rgba(16,24,40,.08); padding:24px;
 `;
-
-const RegisterText = styled.p`
-  text-align: center;
-  margin-top: 1.5rem;
-  font-size: 0.9rem;
+const Title = styled.h2<{ $accent: string }>`
+  margin:0 0 8px; text-align:center; letter-spacing:-.02em;
+  span{ color:${p=>p.$accent}; }
 `;
-
-const StyledLink = styled(Link)`
-  color: #007bff;
-  text-decoration: none;
-  font-weight: bold;
-  &:hover {
-    text-decoration: underline;
-  }
+const Input = styled.input`
+  width:100%; padding:12px 14px; border-radius:10px; border:1px solid #e5e7eb;
+  font-size:14px; outline:none; transition:border .15s;
+  &:focus{ border-color:#9db7ff; }
+  & + & { margin-top:12px; }
 `;
+const Button = styled.button<{ $variant?: 'primary' | 'ghost' }>`
+  margin-top:14px; width:100%; padding:10px 14px; border-radius:10px; font-weight:700;
+  border:0; cursor:pointer;
+  background:${p=>p.$variant==='ghost'?'#f6f7fb':'#1365ff'};
+  color:${p=>p.$variant==='ghost'?'#222':'#fff'};
+`;
+const Error = styled.div`color:#ef4444; font-size:13px; text-align:center; margin:0 0 8px;`;
 
-const Login: React.FC = () => {
+// ✅ Parse role from the query string (supports nurse)
+function getRoleFromSearch(search: string, fallback: Role = 'patient'): Role {
+  const r = new URLSearchParams(search).get('role')?.toLowerCase();
+  return r === 'patient' || r === 'clinician' || r === 'nurse' ? (r as Role) : fallback;
+}
+
+const ACCENT: Record<Role, string> = {
+  patient: '#22c55e',
+  clinician: '#2563eb',
+  nurse: '#8b5cf6',
+};
+
+export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+
+  const params = new URLSearchParams(location.search);
+  const confirmed = params.get('confirmed');
+  const error = params.get('error');
+
+  const intendedRole = getRoleFromSearch(location.search);
+  const next = new URLSearchParams(location.search).get('next') || '';
+  const accent = ACCENT[intendedRole];
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [err, setErr] = useState<string|null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setLoading(true);
-
+    setErr(null); setLoading(true);
     try {
-      await AuthService.login({ email, password });
-      await login(); // Refresh global auth state from context
-      navigate('/');
-    } catch (err: any) {
-      setError(err.message);
+      // Update the AuthService.login call to include role
+      await AuthService.login({ email, password, role: intendedRole });
+      await login(); // refresh context/user
+
+      const defaultDest =
+        intendedRole === 'clinician' ? '/clinician-home' :
+        intendedRole === 'nurse'     ? '/nurse-home' :
+                                      '/patient-home';
+
+      navigate(next || defaultDest, { replace: true });
+    } catch (e: any) {
+      setErr(e?.message ?? 'Failed to log in.');
     } finally {
       setLoading(false);
     }
   };
+  
+  const roleLabel =
+    intendedRole === 'clinician' ? 'Clinician' :
+    intendedRole === 'nurse'     ? 'Nurse' :
+                                   'Patient';
 
   return (
     <>
       <Navbar />
-      <LoginPageWrapper>
-        <FormContainer>
-          <Title>Login</Title>
-          {error && <ErrorText>{error}</ErrorText>}
-          <form onSubmit={handleSubmit}>
-            <Input
-              type="email"
-              value={email}
-              onChange={setEmail}
-              placeholder="Email"
-              disabled={loading}
-            />
-            <Input
-              type="password"
-              value={password}
-              onChange={setPassword}
-              placeholder="Password"
-              disabled={loading}
-              style={{ marginTop: '1rem' }}
-            />
-            <Button
-              type="submit"
-              disabled={loading}
-              variant="primary"
-              style={{ width: '100%', marginTop: '1.5rem' }}
-            >
-              {loading ? 'Logging in...' : 'Login'}
-            </Button>
-          </form>
-          <RegisterText>
-            Don&apos;t have an account? <StyledLink to="/register">Register</StyledLink>
-          </RegisterText>
-        </FormContainer>
-      </LoginPageWrapper>
+      <Page $accent={accent}>
+        <Card onSubmit={onSubmit}>
+          <Title $accent={accent}>{roleLabel} <span>Login</span></Title>
+          
+          {/* Move the confirmation messages here */}
+          {confirmed && <SuccessText>Email confirmed! You can now log in.</SuccessText>}
+          {error === 'confirmation_failed' && <ErrorText>Email confirmation failed. Please try again.</ErrorText>}
+          
+          {err && <Error>{err}</Error>}
+
+          <Input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={e=>setEmail(e.target.value)}
+            disabled={loading}
+          />
+          <Input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={e=>setPassword(e.target.value)}
+            disabled={loading}
+          />
+
+          <Button disabled={loading}>{loading ? 'Logging in…' : 'Log in'}</Button>
+        </Card>
+      </Page>
     </>
   );
-};
-
-export default Login;
+}
