@@ -6,6 +6,11 @@ declare namespace NodeJS {
     readonly REACT_APP_API_URL?: string;
     readonly REACT_APP_WS_URL?: string;
     readonly REACT_APP_URL?: string;
+    readonly REACT_APP_SUPABASE_URL?: string;
+    readonly REACT_APP_SUPABASE_ANON_KEY?: string;
+    readonly REACT_APP_BYPASS_AUTH?: string;
+    readonly REACT_APP_SHOW_DEMO_WHEN_LOGGED_OUT?: string;
+    readonly REACT_APP_INCLUDE_DEMO_WHEN_LOGGED_IN?: string;
   }
 }
 
