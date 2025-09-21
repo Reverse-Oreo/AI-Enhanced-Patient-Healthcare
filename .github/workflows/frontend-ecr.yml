@@ -57,19 +57,6 @@ jobs:
 
         echo "frontend_image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-    - name: Update ECS Service
-      env:
-        CLUSTER_NAME: healthcare-cluster
-        SERVICE_NAME: healthcare-frontend-service
-      run: |
-        # Force new deployment with latest image
-        aws ecs update-service \
-          --cluster $CLUSTER_NAME \
-          --service $SERVICE_NAME \
-          --force-new-deployment
-
-        echo "✅ ECS service updated with new frontend image"
-
     - name: Deployment Summary
       run: |
         echo "## 🚀 Frontend ECR Deployment Summary" >> $GITHUB_STEP_SUMMARY
