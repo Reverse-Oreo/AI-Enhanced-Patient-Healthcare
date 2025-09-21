@@ -2,8 +2,8 @@
   "family": "healthcare-combined",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
-  "cpu": "1024",
-  "memory": "2048",
+  "cpu": "8192",
+  "memory": "61440",
   "executionRoleArn": "arn:aws:iam::694509210714:role/ecsTaskExecutionRole",
   "taskRoleArn": "arn:aws:iam::694509210714:role/ecsTaskRole",
   "containerDefinitions": [
@@ -28,11 +28,23 @@
       "secrets": [
         {
           "name": "SUPABASE_URL",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:694509210714:secret:healthcare/supabase-url-SLSwHp"
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:694509210714:secret:ai-healthcare/prod/supabase-url-SLSwHp"
         },
         {
-          "name": "SUPABASE_KEY",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:694509210714:secret:healthcare/supabase-key-hzQSHK"
+          "name": "SUPABASE_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:694509210714:secret:ai-healthcare/prod/supabase-api-key-v0f45S"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:694509210714:secret:ai-healthcare/prod/jwt-secret-ohJd4y"
+        },
+        {
+          "name": "AWS_ACCESS_KEY_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:694509210714:secret:ai-healthcare/prod/bedrock_access_id-2ctq7j"
+        },
+        {
+          "name": "AWS_SECRET_ACCESS_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:694509210714:secret:ai-healthcare/prod/bedrock_secret_key-TQQ6DG"
         }
       ],
       "healthCheck": {
@@ -43,5 +55,8 @@
         "startPeriod": 60
       }
     }
-  ]
+  ],
+  "ephemeralStorage": {
+    "sizeInGiB": 100
+  }
 }
